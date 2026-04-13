@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.api.dependencies import get_current_active_user
 from app.db.database import get_db
-from app.models.student import Student
 from app.models.feature_snapshot import FeatureSnapshot
+from app.models.student import Student
+from app.models.user import User
 from app.schemas.feature_snapshot import (
     FeatureSnapshotCreate,
     FeatureSnapshotResponse,
@@ -15,7 +17,8 @@ router = APIRouter(prefix="/feature-snapshots", tags=["Feature Snapshots"])
 @router.post("/", response_model=FeatureSnapshotResponse)
 def create_feature_snapshot(
     feature_snapshot: FeatureSnapshotCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
 ):
     student = (
         db.query(Student)
@@ -47,12 +50,19 @@ def create_feature_snapshot(
 
 
 @router.get("/", response_model=list[FeatureSnapshotResponse])
-def get_feature_snapshots(db: Session = Depends(get_db)):
+def get_feature_snapshots(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
     return db.query(FeatureSnapshot).all()
 
 
 @router.get("/{feature_id}", response_model=FeatureSnapshotResponse)
-def get_feature_snapshot(feature_id: int, db: Session = Depends(get_db)):
+def get_feature_snapshot(
+    feature_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
     feature_snapshot = (
         db.query(FeatureSnapshot)
         .filter(FeatureSnapshot.feature_id == feature_id)
@@ -66,7 +76,11 @@ def get_feature_snapshot(feature_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/student/{student_id}", response_model=list[FeatureSnapshotResponse])
-def get_feature_snapshots_for_student(student_id: int, db: Session = Depends(get_db)):
+def get_feature_snapshots_for_student(
+    student_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
     student = db.query(Student).filter(Student.student_id == student_id).first()
 
     if student is None:
