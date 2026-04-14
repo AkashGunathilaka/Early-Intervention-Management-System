@@ -1,4 +1,7 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+
 from app.db.database import Base
 
 
@@ -17,3 +20,15 @@ class Intervention(Base):
 
     notes = Column(Text, nullable=True)
     follow_up_date = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    student = relationship("Student", back_populates="interventions")
+    prediction = relationship("Prediction", back_populates="interventions")
+    creator = relationship("User", back_populates="interventions")

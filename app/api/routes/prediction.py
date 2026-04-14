@@ -13,16 +13,24 @@ from app.models.user import User
 router = APIRouter(prefix="/predictions", tags=["Predictions"])
 
 
-@router.post("/generate/{feature_id}", response_model=PredictionResponse)
-def create_prediction(feature_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+@router.post("/generate/{student_id}", response_model=PredictionResponse)
+def create_prediction(
+    student_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
     feature_snapshot = (
         db.query(FeatureSnapshot)
-        .filter(FeatureSnapshot.feature_id == feature_id)
+        .filter(FeatureSnapshot.student_id == student_id)
+        .order_by(FeatureSnapshot.feature_id.desc())
         .first()
     )
 
     if feature_snapshot is None:
-        raise HTTPException(status_code=404, detail="Feature snapshot not found")
+        raise HTTPException(
+            status_code=404,
+            detail="No feature snapshot found for this student"
+        )
 
     active_model = (
         db.query(ModelRecord)

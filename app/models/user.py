@@ -1,5 +1,7 @@
 from pydantic import EmailStr
 from sqlalchemy import Column, String, Integer, Boolean
+from sqlalchemy.orm import relationship
+
 from app.db.database import Base
 
 class User(Base):
@@ -12,3 +14,4 @@ class User(Base):
     role = Column(String, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
 
+    interventions = relationship("Intervention", back_populates="creator")

@@ -1,4 +1,6 @@
 from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy.orm import relationship
+
 from app.db.database import Base
 
 
@@ -21,3 +23,8 @@ class Student(Base):
     num_of_prev_attempts = Column(Integer)
     studied_credits = Column(Integer)
     disability = Column(String)
+
+    #connecting the models with relationships
+    feature_snapshots = relationship("FeatureSnapshot", back_populates="student", cascade="all, delete-orphan")
+    predictions = relationship("Prediction", back_populates="student", cascade="all, delete-orphan")
+    interventions = relationship("Intervention", back_populates="student", cascade="all, delete-orphan")

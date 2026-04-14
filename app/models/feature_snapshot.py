@@ -1,4 +1,6 @@
 from sqlalchemy import Column, Integer, Float, ForeignKey
+from sqlalchemy.orm import relationship
+
 from app.db.database import Base
 
 
@@ -16,3 +18,7 @@ class FeatureSnapshot(Base):
     assessment_count = Column(Integer, default=0)
     avg_weight = Column(Float, default=0)
     at_risk_label = Column(Integer, nullable=True)
+
+    #connecting the models with relationships
+    student = relationship("Student", back_populates="feature_snapshots")
+    predictions = relationship("Prediction", back_populates="feature_snapshot", cascade="all, delete-orphan")
