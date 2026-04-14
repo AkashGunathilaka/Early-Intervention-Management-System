@@ -1,6 +1,9 @@
 from pydantic import BaseModel
 from datetime import datetime
 
+class PredictionCreate(BaseModel):
+    student_id: int
+
 
 class PredictionResponse(BaseModel):
     prediction_id: int

@@ -1,5 +1,8 @@
 from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey
+from sqlalchemy.orm import relationship
+
 from app.db.database import Base
+from sqlalchemy.orm import relationship
 
 
 class ModelRecord(Base):
@@ -16,3 +19,7 @@ class ModelRecord(Base):
     f1_score = Column(Float, nullable=True)
     roc_auc = Column(Float, nullable=True)
     is_active = Column(Boolean, default=False)
+
+
+    #connecting the models with relationships
+    predictions = relationship("Prediction", back_populates="model_record", cascade="all, delete-orphan")

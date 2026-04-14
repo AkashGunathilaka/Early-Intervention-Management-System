@@ -12,6 +12,14 @@ class InterventionCreate(BaseModel):
     follow_up_date: datetime | None = None
 
 
+class InterventionUpdate(BaseModel):
+    suggested_action: str | None = None
+    action_status: str | None = None
+    priority_level: str | None = None
+    notes: str | None = None
+    follow_up_date: datetime | None = None
+
+
 class InterventionResponse(BaseModel):
     intervention_id: int
     student_id: int

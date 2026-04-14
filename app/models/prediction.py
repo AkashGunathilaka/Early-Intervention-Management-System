@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, Float, String, DateTime, ForeignKey, Text
 from sqlalchemy.sql import func
 from app.db.database import Base
+from sqlalchemy.orm import relationship
 
 
 class Prediction(Base):
@@ -21,3 +22,14 @@ class Prediction(Base):
     top_factors = Column(Text, nullable=True)
 
     prediction_date = Column(DateTime(timezone=True), server_default=func.now())
+    student = relationship("Student", back_populates="prediction")
+
+    #connecting the models with relationships
+    student = relationship("Student", back_populates="predictions")
+    feature_snapshot = relationship("FeatureSnapshot", back_populates="predictions")
+    model_record = relationship("ModelRecord", back_populates="predictions")
+    interventions = relationship(
+        "Intervention",
+        back_populates="prediction",
+        cascade="all, delete-orphan"
+    )
