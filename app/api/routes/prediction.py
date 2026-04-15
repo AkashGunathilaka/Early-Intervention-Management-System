@@ -1,15 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-
 from app.db.database import get_db
-from app.models.feature_snapshot import FeatureSnapshot
-from app.models.model_record import ModelRecord
 from app.models.prediction import Prediction
-from app.ml.predictor import generate_prediction
 from app.schemas.prediction import PredictionResponse
 from app.api.dependencies import get_current_active_user
 from app.models.user import User
-
+from app.services.prediction_service import predict_for_student
 router = APIRouter(prefix="/predictions", tags=["Predictions"])
 
 
@@ -19,47 +15,7 @@ def create_prediction(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    feature_snapshot = (
-        db.query(FeatureSnapshot)
-        .filter(FeatureSnapshot.student_id == student_id)
-        .order_by(FeatureSnapshot.feature_id.desc())
-        .first()
-    )
-
-    if feature_snapshot is None:
-        raise HTTPException(
-            status_code=404,
-            detail="No feature snapshot found for this student"
-        )
-
-    active_model = (
-        db.query(ModelRecord)
-        .filter(ModelRecord.is_active == True)
-        .first()
-    )
-
-    if active_model is None:
-        raise HTTPException(status_code=404, detail="No active model found")
-
-    prediction_result = generate_prediction(feature_snapshot)
-
-    new_prediction = Prediction(
-        student_id=feature_snapshot.student_id,
-        feature_id=feature_snapshot.feature_id,
-        model_id=active_model.model_id,
-        risk_score=prediction_result["risk_score"],
-        predicted_label=prediction_result["predicted_label"],
-        risk_level=prediction_result["risk_level"],
-        confidence_score=prediction_result["confidence_score"],
-        top_factors=prediction_result["top_factors"],
-    )
-
-    db.add(new_prediction)
-    db.commit()
-    db.refresh(new_prediction)
-
-    return new_prediction
-
+    return predict_for_student(student_id=student_id, db=db)
 
 @router.get("/", response_model=list[PredictionResponse])
 def get_predictions(db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
