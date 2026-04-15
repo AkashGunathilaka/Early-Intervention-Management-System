@@ -1,3 +1,4 @@
+from app.models.risk_threshold import RiskThreshold
 from app.models.user import User
 from app.models.dataset import Dataset
 from app.models.student import Student

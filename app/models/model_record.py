@@ -13,6 +13,8 @@ class ModelRecord(Base):
     model_name = Column(String, nullable=False)
     version = Column(String, nullable=False)
     algorithm = Column(String, nullable=False)
+    model_path = Column(String, nullable=False)
+    feature_columns_path = Column(String, nullable=False)
     accuracy = Column(Float, nullable=True)
     precision = Column(Float, nullable=True)
     recall = Column(Float, nullable=True)
