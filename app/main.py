@@ -9,6 +9,7 @@ from app.api.routes import auth
 from app.api.routes.model_management import router as model_management_router
 from app.api.routes.risk_threshold import router as risk_threshold_router
 from app.api.routes.ml_admin import router as ml_admin_router
+from app.api.routes.dashboard import router as dashboard_router
 # Import models so SQLAlchemy knows about them
 
 Base.metadata.create_all(bind=engine)
@@ -24,6 +25,7 @@ app.include_router(risk_threshold_router)
 app.include_router(auth.router)
 app.include_router(model_management_router)
 app.include_router(ml_admin_router)
+app.include_router(dashboard_router)
 
 
 

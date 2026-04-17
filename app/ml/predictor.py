@@ -30,6 +30,8 @@ def load_feature_columns():
 
 def load_model_from_path(model_path: str):
     path = Path(model_path)
+    if not path.is_absolute():
+        path = BASE_DIR / path
     if not path.exists():
         raise FileNotFoundError(f"Model file not found at {path}")
     with open(path, "rb") as f:
@@ -38,6 +40,8 @@ def load_model_from_path(model_path: str):
 
 def load_feature_columns_from_path(feature_columns_path: str):
     path = Path(feature_columns_path)
+    if not path.is_absolute():
+        path = BASE_DIR / path
     if not path.exists():
         raise FileNotFoundError(f"Feature columns file not found at {path}")
     with open(path, "rb") as f:
@@ -88,16 +92,39 @@ def generate_prediction(feature_snapshot, model_path: str | None = None, feature
     confidence_score = float(max(probs))
     risk_level = get_risk_level(risk_score)
 
-    top_factors = "Prediction generated from engagement and assessment features"
+    top_factors = "Feature importance unavailable"
+    if hasattr(model, "feature_importances_"):
+        try:
+            importances = model.feature_importances_
+            row_values = df.iloc[0]
+
+            contribution_rows = []
+            for col, imp in zip(df.columns, importances):
+                value = float(row_values[col])
+                contribution = float(imp) * abs(value)
+                if contribution > 0:
+                    contribution_rows.append((col, contribution, value, float(imp)))
+
+            contribution_rows.sort(key=lambda x: x[1], reverse=True)
+            top = contribution_rows[:5]
+
+            if top:
+                top_factors = "; ".join(
+                    f"{name} (value={value:.2f}, importance={importance:.4f})"
+                    for name, _, value, importance in top
+                )
+            else:
+                top_factors = "No non-zero feature contributions found"
+        except Exception:
+            top_factors = "Feature importance computation failed"
 
     return {
-        "risk_score": risk_score,
-        "predicted_label": predicted_label,
-        "risk_level": risk_level,
-        "confidence_score": confidence_score,
-        "top_factors": top_factors,
+    "risk_score": risk_score,
+    "predicted_label": predicted_label,
+    "risk_level": risk_level,
+    "confidence_score": confidence_score,
+    "top_factors": top_factors,
     }
-
 
 def clear_model_cache() -> None:
     load_model.cache_clear()
