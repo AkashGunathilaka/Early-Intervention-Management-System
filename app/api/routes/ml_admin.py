@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import require_admin
 from app.db.database import get_db
+from app.models.dataset import Dataset
 from app.models.model_record import ModelRecord
 from app.models.user import User
 
@@ -35,8 +36,20 @@ async def upload_dataset(
     content = await file.read()
     file_path.write_bytes(content)
 
+    new_dataset = Dataset(
+        dataset_name=safe_name,
+        source_type="upload",
+        file_path=str(file_path),
+        status="uploaded",
+        uploaded_by=current_user.user_id,
+    )
+    db.add(new_dataset)
+    db.commit()
+    db.refresh(new_dataset)
+
     return {
         "message": "Dataset uploaded successfully",
+        "dataset_id": new_dataset.dataset_id,
         "filename": safe_name,
         "path": str(file_path),
     }
@@ -45,13 +58,21 @@ async def upload_dataset(
 @router.post("/retrain")
 def retrain_model(
     dataset_id: int,
-    dataset_path: str,
+    dataset_path: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    csv_file = Path(dataset_path)
+    ds = db.query(Dataset).filter(Dataset.dataset_id == dataset_id).first()
+    if ds is None:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+
+    resolved_path = dataset_path or ds.file_path
+    if not resolved_path:
+        raise HTTPException(status_code=400, detail="No dataset_path provided and dataset has no file_path")
+
+    csv_file = Path(resolved_path)
     if not csv_file.exists():
-        raise HTTPException(status_code=404, detail=f"Dataset file not found: {dataset_path}")
+        raise HTTPException(status_code=404, detail=f"Dataset file not found: {resolved_path}")
     version = f"v{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
 
     try:
