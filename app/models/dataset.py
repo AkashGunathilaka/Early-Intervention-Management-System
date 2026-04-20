@@ -9,6 +9,7 @@ class Dataset(Base):
     dataset_id = Column(Integer, primary_key=True, index=True)
     dataset_name = Column(String, nullable=False)
     source_type = Column(String, nullable=False)
+    file_path = Column(String, nullable=True)
     upload_date = Column(DateTime(timezone=True), server_default=func.now())
     status = Column(String, nullable=False)
     uploaded_by = Column(Integer, ForeignKey("users.user_id"), nullable=False)

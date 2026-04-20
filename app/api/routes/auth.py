@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from app.core.security import get_password_hash
+from app.schemas.password import ChangePasswordRequest
 
 from app.core.security import create_access_token, verify_password
 from app.db.database import get_db
@@ -36,6 +38,25 @@ def login(
         "token_type": "bearer",
     }
 
+
+@router.post("/logout")
+def logout(current_user: User = Depends(get_current_active_user)):
+    #frontend deletes the token.
+    return {"message": "Logged out successfully"}
+
 @router.get("/me", response_model=UserResponse)
 def read_me(current_user: User = Depends(get_current_active_user)):
     return current_user
+@router.post("/change-password")
+def change_password(
+    payload: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    if not verify_password(payload.current_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+
+    current_user.password_hash = get_password_hash(payload.new_password)
+    db.commit()
+
+    return {"message": "Password updated successfully"}

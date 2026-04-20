@@ -1,5 +1,6 @@
 from pathlib import Path
 import pickle
+import json
 
 import pandas as pd
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
@@ -14,6 +15,11 @@ from app.ml.preprocessing import (
 MODEL_DIR = Path("model")
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
+def _write_metrics_json(artifact_dir: Path, payload: dict) -> str:
+    metrics_path = artifact_dir / "metrics.json"
+    with open(metrics_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, sort_keys=True)
+    return str(metrics_path)
 
 def validate_required_columns(df: pd.DataFrame, required_columns: list[str], dataset_name: str) -> None:
     missing = [col for col in required_columns if col not in df.columns]
@@ -86,10 +92,24 @@ def train_model_from_csv(csv_path: str, version: str, target_column: str = "at_r
     with open(feature_columns_path, "wb") as f:
         pickle.dump(feature_columns, f)
 
+    metrics_path = _write_metrics_json(
+        artifact_dir,
+        {
+            "type": "csv_retrain",
+            "source_csv": str(csv_path),
+            "target_column": target_column,
+            "split": {"method": "train_test_split", "test_size": 0.2, "random_state": 42, "stratify": True},
+            "training_rows": int(len(df)),
+            "feature_count": int(len(feature_columns)),
+            **metrics,
+        },
+    )
+
     return {
         **metrics,
         "model_path": str(model_path),
         "feature_columns_path": str(feature_columns_path),
+        "metrics_path": metrics_path,
     }
 
 
@@ -185,10 +205,30 @@ def train_model_from_oulad_tables(
     with open(feature_columns_path, "wb") as f:
         pickle.dump(feature_columns, f)
 
+    metrics_path = _write_metrics_json(
+        artifact_dir,
+        {
+            "type": "oulad_retrain",
+            "source_files": {
+                "student_info_path": str(student_info_path),
+                "student_vle_path": str(student_vle_path),
+                "student_assessment_path": str(student_assessment_path),
+                "assessments_path": str(assessments_path),
+            },
+            "early_days": early_days,
+            "drop_code_module": drop_code_module,
+            "split": {"method": "train_test_split", "test_size": 0.2, "random_state": 42, "stratify": True},
+            "training_rows": int(len(df)),
+            "feature_count": int(len(feature_columns)),
+            **metrics,
+        },
+    )
+
     return {
         **metrics,
         "model_path": str(model_path),
         "feature_columns_path": str(feature_columns_path),
         "training_rows": int(len(df)),
         "feature_count": int(len(feature_columns)),
+        "metrics_path": metrics_path,
     }
