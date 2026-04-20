@@ -13,6 +13,7 @@ class ModelRecordResponse(BaseModel):
     f1_score: float | None = None
     roc_auc: float | None = None
     is_active: bool
+    is_locked: bool = False
     model_path: str | None = None
     feature_columns_path: str | None = None
 

@@ -1,8 +1,7 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey
+from sqlalchemy import Boolean, Column, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
-from sqlalchemy.orm import relationship
 
 
 class ModelRecord(Base):
@@ -21,6 +20,7 @@ class ModelRecord(Base):
     f1_score = Column(Float, nullable=True)
     roc_auc = Column(Float, nullable=True)
     is_active = Column(Boolean, default=False)
+    is_locked = Column(Boolean, default=False, nullable=False)
 
 
     #connecting the models with relationships
