@@ -40,7 +40,9 @@ def prepare_training_dataframe_from_raw_tables(
         early_assessments.groupby(["id_student", "code_module", "code_presentation"])
         .agg(
             avg_score=("score", "mean"),
+            total_score=("score", "sum"),
             assessment_count=("score", "count"),
+            avg_weight=("weight", "mean"),
         )
         .reset_index()
     )
@@ -63,7 +65,9 @@ def prepare_training_dataframe_from_raw_tables(
         "avg_clicks",
         "vle_records",
         "avg_score",
+        "total_score",
         "assessment_count",
+        "avg_weight",
     ]
     for col in numeric_feature_cols:
         if col not in df.columns:

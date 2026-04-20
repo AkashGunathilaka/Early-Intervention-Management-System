@@ -1,0 +1,14 @@
+{
+  "accuracy": 0.7949312316488951,
+  "precision": 0.8579329415831317,
+  "recall": 0.7304296645085344,
+  "f1_score": 0.7890637418534414,
+  "roc_auc": 0.8818628978551537,
+  "pr_auc": 0.9054128587947021,
+  "split": {
+    "type": "GroupShuffleSplit",
+    "test_size": 0.2,
+    "random_state": 42,
+    "group_col": "id_student"
+  }
+}
