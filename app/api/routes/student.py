@@ -1,6 +1,7 @@
+from enum import Enum
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from sqlalchemy import func
@@ -15,6 +16,11 @@ from app.models.user import User
 from app.schemas.student import StudentCreate, StudentResponse
 
 router = APIRouter(prefix="/students", tags=["Students"])
+
+class RiskLevel(str, Enum):
+    Low = "Low"
+    Medium = "Medium"
+    High = "High"
 
 
 @router.post("/", response_model=StudentResponse)
@@ -53,11 +59,11 @@ def get_students(
 
 @router.get("/search", response_model=list[StudentSearchResult])
 def search_students(
-    dataset_id: int | None = None,
-    risk_level: str | None = None,  # "High" | "Medium" | "Low"
-    code_presentation: str | None = None,
-    region: str | None = None,
-    limit: int = 50,
+    dataset_id: int | None = Query(default=None, description="Filter by dataset_id"),
+    risk_level: RiskLevel | None = Query(default=None, description="Filter by latest prediction risk level"),
+    code_presentation: str | None = Query(default=None, description="Filter by code_presentation"),
+    region: str | None = Query(default=None, description="Filter by region"),
+    limit: int = Query(default=50, ge=1, le=500, description="Max students returned (before risk filter)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):

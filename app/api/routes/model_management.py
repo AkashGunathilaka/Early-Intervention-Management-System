@@ -167,6 +167,55 @@ def masterize_from_notebook(
     return master
 
 
+@router.delete("/{model_id}")
+def delete_model(
+    model_id: int,
+    delete_artifacts: bool = True,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """
+    Delete a model record safely.
+
+    Rules:
+    - Cannot delete locked models
+    - Cannot delete the active model
+    - Optionally deletes artifact files if they are inside `model/artifacts/`
+    """
+    model = db.query(ModelRecord).filter(ModelRecord.model_id == model_id).first()
+    if model is None:
+        raise HTTPException(status_code=404, detail="Model not found")
+
+    if getattr(model, "is_locked", False):
+        raise HTTPException(status_code=400, detail="Locked master models cannot be deleted")
+    if model.is_active:
+        raise HTTPException(status_code=400, detail="Active model cannot be deleted (activate another model first)")
+
+    # Resolve artifact dir (best-effort) and only delete if it's under model/artifacts/
+    deleted_paths: list[str] = []
+    if delete_artifacts and model.model_path:
+        model_path = Path(model.model_path)
+        if not model_path.is_absolute():
+            model_path = BASE_DIR / model_path
+
+        artifact_dir = model_path.parent
+        artifacts_root = (BASE_DIR / "model" / "artifacts").resolve()
+        try:
+            artifact_dir_resolved = artifact_dir.resolve()
+            if artifacts_root in artifact_dir_resolved.parents:
+                # delete the whole version folder
+                if artifact_dir_resolved.exists():
+                    shutil.rmtree(artifact_dir_resolved)
+                    deleted_paths.append(str(artifact_dir_resolved))
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Failed to delete artifacts: {exc}")
+
+    db.delete(model)
+    db.commit()
+
+    return {"message": "Model deleted", "model_id": model_id, "deleted_artifacts": deleted_paths}
+
+
 @router.get("/{model_id}/metrics-file")
 def get_model_metrics_file(
     model_id: int,
