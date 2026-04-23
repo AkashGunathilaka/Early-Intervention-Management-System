@@ -1,12 +1,15 @@
 import { FormEvent, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { api, setAuthToken } from '../lib/api'
 import { setToken } from '../lib/auth'
+import { useAuth } from '../context/AuthContext'
 
 type LoginResponse = { access_token: string; token_type: string }
 
 export function LoginPage() {
   const nav = useNavigate()
+  const loc = useLocation()
+  const { refreshMe } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -28,7 +31,14 @@ export function LoginPage() {
 
       setToken(res.data.access_token)
       setAuthToken(res.data.access_token)
-      nav('/dashboard')
+      try {
+        await refreshMe()
+      } catch {
+        // ignore; route guard will handle if token invalid
+      }
+
+      const from = (loc.state as any)?.from
+      nav(typeof from === 'string' && from ? from : '/dashboard')
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? 'Login failed')
     } finally {
@@ -38,8 +48,8 @@ export function LoginPage() {
 
   return (
     <div style={{ maxWidth: 420, margin: '64px auto', padding: 16 }}>
-      <h1>Early Intervention System</h1>
-      <p>Sign in to continue</p>
+      <h1 style={{ margin: 0, lineHeight: 1.15 }}>Early Intervention System</h1>
+      <p style={{ marginTop: 8, marginBottom: 24, color: '#6b7280' }}>Sign in to continue</p>
       <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12 }}>
         <label style={{ display: 'grid', gap: 6 }}>
           Email
