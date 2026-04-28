@@ -70,26 +70,27 @@ export function StudentsPage() {
   }, [])
 
   return (
-    <div style={{ maxWidth: 1100, margin: '32px auto', padding: 16 }}>
-      <h1>Students</h1>
+    <div className="page">
+      <div className="pageHeader">
+        <h1>Students</h1>
+      </div>
 
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'end' }}>
-        <label>
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'end' }}>
+        <label style={{ minWidth: 150 }}>
           Dataset ID
           <input
             type="number"
             value={datasetId}
             onChange={(e) => setDatasetId(Number(e.target.value))}
-            style={{ display: 'block' }}
           />
         </label>
 
-        <label>
+        <label style={{ minWidth: 160 }}>
           Risk level
           <select
             value={riskLevel}
             onChange={(e) => setRiskLevel(e.target.value as any)}
-            style={{ display: 'block' }}
           >
             <option value="">All</option>
             <option value="High">High</option>
@@ -98,28 +99,26 @@ export function StudentsPage() {
           </select>
         </label>
 
-        <label>
+        <label style={{ minWidth: 220 }}>
           Region
-          <input value={region} onChange={(e) => setRegion(e.target.value)} style={{ display: 'block' }} />
+          <input value={region} onChange={(e) => setRegion(e.target.value)} placeholder="e.g. London Region" />
         </label>
 
-        <label>
+        <label style={{ minWidth: 200 }}>
           Presentation
           <input
             value={codePresentation}
             onChange={(e) => setCodePresentation(e.target.value)}
             placeholder="e.g. 2014J"
-            style={{ display: 'block' }}
           />
         </label>
 
-        <label>
+        <label style={{ minWidth: 120 }}>
           Limit
           <input
             type="number"
             value={limit}
             onChange={(e) => setLimit(Number(e.target.value))}
-            style={{ display: 'block' }}
           />
         </label>
 
@@ -127,50 +126,48 @@ export function StudentsPage() {
           {loading ? 'Searching…' : 'Search'}
         </button>
       </div>
+      </div>
 
-      {error ? <p style={{ color: 'crimson' }}>{error}</p> : null}
+      {error ? <p className="error">{error}</p> : null}
 
       <div style={{ marginTop: 16 }}>
-        <table width="100%" cellPadding={8} style={{ borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>
-              <th>ID</th>
-              <th>Dataset</th>
-              <th>Region</th>
-              <th>Presentation</th>
-              <th>Risk</th>
-              <th>Score</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.student.student_id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                <td>{r.student.student_id}</td>
-                <td>{r.student.dataset_id}</td>
-                <td>{r.student.region ?? '-'}</td>
-                <td>{r.student.code_presentation ?? '-'}</td>
-                <td>
-                  {r.latest_prediction ? <RiskBadge level={r.latest_prediction.risk_level} /> : <span>-</span>}
-                </td>
-                <td>{r.latest_prediction ? r.latest_prediction.risk_score.toFixed(3) : '-'}</td>
-                <td>
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                    <Link to={`/students/${r.student.student_id}`}>View</Link>
-                    {!r.latest_prediction ? (
-                      <button
-                        onClick={() => generateForStudent(r.student.student_id)}
-                        disabled={generatingId === r.student.student_id}
-                      >
-                        {generatingId === r.student.student_id ? 'Generating…' : 'Generate'}
-                      </button>
-                    ) : null}
-                  </div>
-                </td>
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <table cellPadding={8} style={{ borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border)' }}>
+                <th>ID</th>
+                <th>Dataset</th>
+                <th>Region</th>
+                <th>Presentation</th>
+                <th>Risk</th>
+                <th>Score</th>
+                <th>Action</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.student.student_id} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td>{r.student.student_id}</td>
+                  <td>{r.student.dataset_id}</td>
+                  <td>{r.student.region ?? '-'}</td>
+                  <td>{r.student.code_presentation ?? '-'}</td>
+                  <td>{r.latest_prediction ? <RiskBadge level={r.latest_prediction.risk_level} /> : <span className="muted">-</span>}</td>
+                  <td>{r.latest_prediction ? r.latest_prediction.risk_score.toFixed(3) : '-'}</td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                      <Link to={`/students/${r.student.student_id}`}>View</Link>
+                      {!r.latest_prediction ? (
+                        <button onClick={() => generateForStudent(r.student.student_id)} disabled={generatingId === r.student.student_id}>
+                          {generatingId === r.student.student_id ? 'Generating…' : 'Generate'}
+                        </button>
+                      ) : null}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
         {!loading && rows.length === 0 ? <p>No results.</p> : null}
       </div>

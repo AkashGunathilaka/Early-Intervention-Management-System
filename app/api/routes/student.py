@@ -9,11 +9,11 @@ from app.models.prediction import Prediction
 from app.models.feature_snapshot import FeatureSnapshot
 from app.models.intervention import Intervention
 from app.schemas.student_profile import StudentSearchResult, StudentProfileResponse
-from app.api.dependencies import get_current_active_user
+from app.api.dependencies import get_current_active_user, require_admin
 from app.db.database import get_db
 from app.models.student import Student
 from app.models.user import User
-from app.schemas.student import StudentCreate, StudentResponse
+from app.schemas.student import StudentCreate, StudentResponse, StudentUpdate
 
 router = APIRouter(prefix="/students", tags=["Students"])
 
@@ -125,6 +125,40 @@ def get_student(
 
     return student
 
+
+
+@router.put("/{student_id}", response_model=StudentResponse)
+def update_student(
+    student_id: int,
+    payload: StudentUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    student = db.query(Student).filter(Student.student_id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    data = payload.model_dump(exclude_unset=True)
+    for k, v in data.items():
+        setattr(student, k, v)
+    db.commit()
+    db.refresh(student)
+    return student
+
+
+@router.delete("/{student_id}")
+def delete_student(
+    student_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    student = db.query(Student).filter(Student.student_id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    db.delete(student)
+    db.commit()
+    return {"message": "Student deleted"}
 
 
 @router.get("/{student_id}/profile", response_model=StudentProfileResponse)

@@ -13,6 +13,20 @@ from app.models.user import User
 
 router = APIRouter(prefix="/admin/data", tags=["Admin - Data"])
 
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _resolve_under_uploads(raw_path: str) -> Path:
+    base = UPLOAD_DIR.resolve()
+    p = Path(raw_path).expanduser()
+    if not p.is_absolute():
+        p = UPLOAD_DIR / p
+    resolved = p.resolve()
+    if base != resolved and base not in resolved.parents:
+        raise HTTPException(status_code=400, detail="Path must be inside the uploads directory")
+    return resolved
+
 
 @router.post("/import-oulad")
 def import_oulad_to_db(
@@ -26,15 +40,19 @@ def import_oulad_to_db(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    paths = [student_info_path, student_vle_path, student_assessment_path, assessments_path]
-    missing = [p for p in paths if not Path(p).exists()]
+    student_info_file = _resolve_under_uploads(student_info_path)
+    student_vle_file = _resolve_under_uploads(student_vle_path)
+    student_assessment_file = _resolve_under_uploads(student_assessment_path)
+    assessments_file = _resolve_under_uploads(assessments_path)
+
+    missing = [str(p) for p in [student_info_file, student_vle_file, student_assessment_file, assessments_file] if not p.exists()]
     if missing:
         raise HTTPException(status_code=404, detail=f"Missing files: {missing}")
 
-    student_info = pd.read_csv(student_info_path)
-    student_vle = pd.read_csv(student_vle_path)
-    student_assessment = pd.read_csv(student_assessment_path)
-    assessments = pd.read_csv(assessments_path)
+    student_info = pd.read_csv(student_info_file)
+    student_vle = pd.read_csv(student_vle_file)
+    student_assessment = pd.read_csv(student_assessment_file)
+    assessments = pd.read_csv(assessments_file)
 
     df = prepare_training_dataframe_from_raw_tables(
         student_info=student_info,

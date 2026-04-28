@@ -19,6 +19,20 @@ router = APIRouter(prefix="/admin/ml", tags=["Admin - ML"])
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
+def _resolve_under_uploads(raw_path: str) -> Path:
+    """
+    Prevent arbitrary filesystem access by forcing all admin-supplied paths to live under ./uploads.
+    This keeps the demo safe if it's ever deployed.
+    """
+    base = UPLOAD_DIR.resolve()
+    p = Path(raw_path).expanduser()
+    if not p.is_absolute():
+        p = UPLOAD_DIR / p
+    resolved = p.resolve()
+    if base != resolved and base not in resolved.parents:
+        raise HTTPException(status_code=400, detail="Path must be inside the uploads directory")
+    return resolved
+
 
 @router.post("/upload-dataset")
 async def upload_dataset(
@@ -70,7 +84,7 @@ def retrain_model(
     if not resolved_path:
         raise HTTPException(status_code=400, detail="No dataset_path provided and dataset has no file_path")
 
-    csv_file = Path(resolved_path)
+    csv_file = _resolve_under_uploads(resolved_path)
     if not csv_file.exists():
         raise HTTPException(status_code=404, detail=f"Dataset file not found: {resolved_path}")
     version = f"v{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
@@ -127,28 +141,26 @@ def retrain_model_oulad(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    # Validate all file paths exist
-    input_paths = [
-        student_info_path,
-        student_vle_path,
-        student_assessment_path,
-        assessments_path,
-    ]
-    missing_paths = [p for p in input_paths if not Path(p).exists()]
-    if missing_paths:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Missing dataset files: {missing_paths}",
-        )
+    # Validate and constrain file paths to ./uploads (no arbitrary filesystem reads)
+    try:
+        student_info_file = _resolve_under_uploads(student_info_path)
+        student_vle_file = _resolve_under_uploads(student_vle_path)
+        student_assessment_file = _resolve_under_uploads(student_assessment_path)
+        assessments_file = _resolve_under_uploads(assessments_path)
+    except HTTPException:
+        raise
+    missing = [str(p) for p in [student_info_file, student_vle_file, student_assessment_file, assessments_file] if not p.exists()]
+    if missing:
+        raise HTTPException(status_code=404, detail=f"Missing dataset files: {missing}")
 
     version = f"v{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
 
     try:
         metrics = train_model_from_oulad_tables(
-            student_info_path=student_info_path,
-            student_vle_path=student_vle_path,
-            student_assessment_path=student_assessment_path,
-            assessments_path=assessments_path,
+            student_info_path=str(student_info_file),
+            student_vle_path=str(student_vle_file),
+            student_assessment_path=str(student_assessment_file),
+            assessments_path=str(assessments_file),
             version=version,
             early_days=early_days,
             drop_code_module=drop_code_module,

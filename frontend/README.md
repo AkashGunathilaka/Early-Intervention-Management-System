@@ -1,3 +1,45 @@
+# Frontend (Vite + React)
+
+## Setup
+
+From the repo root:
+
+```bash
+cd frontend
+npm install
+```
+
+## Environment
+
+Create `frontend/.env` (or copy from `.env.example`):
+
+```env
+VITE_API_BASE_URL=http://127.0.0.1:8000
+```
+
+## Run (dev)
+
+Start the backend first (FastAPI).
+
+Then:
+
+```bash
+cd frontend
+npm run dev
+```
+
+Open the URL Vite prints (usually `http://localhost:5173`).
+
+## Pages
+
+- `/login`
+- `/dashboard`
+- `/students`
+- `/students/:id`
+- `/admin/models` (admin only)
+- `/admin/ml` (admin only)
+- `/admin/risk-thresholds` (admin only)
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

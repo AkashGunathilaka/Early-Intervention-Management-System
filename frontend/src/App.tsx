@@ -8,10 +8,17 @@ import { RequireAuth } from './components/RequireAuth'
 import { RequireAdmin } from './components/RequireAdmin'
 import { StudentsPage } from './pages/StudentsPage'
 import { StudentProfilePage } from './pages/StudentProfilePage'
+import { StudentPredictionsPage } from './pages/StudentPredictionsPage'
+import { StudentSnapshotsPage } from './pages/StudentSnapshotsPage'
 import { AppLayout } from './components/AppLayout'
 import { AdminModelsPage } from './pages/admin/AdminModelsPage'
+import { AdminMLPage } from './pages/admin/AdminMLPage'
 import { AdminRiskThresholdsPage } from './pages/admin/AdminRiskThresholdsPage'
+import { AdminDataPage } from './pages/admin/AdminDataPage'
+import { AdminUsersPage } from './pages/admin/AdminUsersPage'
 import { AuthProvider } from './context/AuthContext'
+import { ChangePasswordPage } from './pages/ChangePasswordPage'
+import { ResetPasswordPage } from './pages/ResetPasswordPage'
 
 function App() {
   useEffect(() => {
@@ -23,6 +30,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route
           path="/dashboard"
           element={
@@ -54,12 +62,78 @@ function App() {
           }
         />
         <Route
+          path="/students/:id/predictions"
+          element={
+            <RequireAuth>
+              <AppLayout>
+                <StudentPredictionsPage />
+              </AppLayout>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/students/:id/snapshots"
+          element={
+            <RequireAuth>
+              <AppLayout>
+                <StudentSnapshotsPage />
+              </AppLayout>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/change-password"
+          element={
+            <RequireAuth>
+              <AppLayout>
+                <ChangePasswordPage />
+              </AppLayout>
+            </RequireAuth>
+          }
+        />
+        <Route
           path="/admin/models"
           element={
             <RequireAuth>
               <RequireAdmin>
                 <AppLayout>
                   <AdminModelsPage />
+                </AppLayout>
+              </RequireAdmin>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/admin/ml"
+          element={
+            <RequireAuth>
+              <RequireAdmin>
+                <AppLayout>
+                  <AdminMLPage />
+                </AppLayout>
+              </RequireAdmin>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/admin/data"
+          element={
+            <RequireAuth>
+              <RequireAdmin>
+                <AppLayout>
+                  <AdminDataPage />
+                </AppLayout>
+              </RequireAdmin>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <RequireAuth>
+              <RequireAdmin>
+                <AppLayout>
+                  <AdminUsersPage />
                 </AppLayout>
               </RequireAdmin>
             </RequireAuth>

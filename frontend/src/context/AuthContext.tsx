@@ -19,6 +19,8 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | null>(null)
 
+const LAST_ACTIVE_KEY = 'eims_last_active_ms'
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<Me | null>(null)
   const [loading, setLoading] = useState(true)
@@ -65,6 +67,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+
+    const timeoutMinutes = Number(import.meta.env.VITE_IDLE_TIMEOUT_MINUTES ?? 30)
+    const timeoutMs = Math.max(1, timeoutMinutes) * 60_000
+
+    const markActive = () => {
+      // avoid excessive localStorage writes; 1 write per ~5s max
+      const now = Date.now()
+      const last = Number(localStorage.getItem(LAST_ACTIVE_KEY) ?? '0')
+      if (!last || now - last > 5000) localStorage.setItem(LAST_ACTIVE_KEY, String(now))
+    }
+
+    // initialize on load
+    markActive()
+
+    const events: Array<keyof WindowEventMap> = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart']
+    for (const ev of events) window.addEventListener(ev, markActive, { passive: true })
+
+    const interval = window.setInterval(() => {
+      const now = Date.now()
+      const last = Number(localStorage.getItem(LAST_ACTIVE_KEY) ?? '0')
+      const idleFor = now - (last || 0)
+      if (idleFor >= timeoutMs) {
+        logout()
+        if (window.location.pathname !== '/login') window.location.assign('/login')
+      }
+    }, 10_000)
+
+    return () => {
+      window.clearInterval(interval)
+      for (const ev of events) window.removeEventListener(ev, markActive)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.user_id])
 
   const value = useMemo<AuthState>(() => ({ user, loading, refreshMe, logout }), [user, loading])
 

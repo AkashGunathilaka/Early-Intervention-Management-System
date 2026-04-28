@@ -63,10 +63,12 @@ export function DashboardPage() {
   }, [])
 
   return (
-    <div style={{ maxWidth: 960, margin: '32px auto', padding: 16 }}>
-      <h1 style={{ marginTop: 0 }}>Dashboard</h1>
+    <div className="page" style={{ maxWidth: 1000 }}>
+      <div className="pageHeader">
+        <h1>Dashboard</h1>
+      </div>
       {loading ? <p>Loading…</p> : null}
-      {error ? <p style={{ color: 'crimson' }}>{error}</p> : null}
+      {error ? <p className="error">{error}</p> : null}
 
       {data ? (
         <div style={{ display: 'grid', gap: 16 }}>
@@ -84,7 +86,7 @@ export function DashboardPage() {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <Card title="Risk distribution">
-              {dist ? <RiskBars dist={dist} /> : <p style={{ margin: 0, color: '#6b7280' }}>No data</p>}
+              {dist ? <RiskBars dist={dist} /> : <p className="muted">No data</p>}
             </Card>
 
             <Card title="Intervention status">
@@ -96,17 +98,17 @@ export function DashboardPage() {
                       style={{
                         display: 'flex',
                         justifyContent: 'space-between',
-                        borderBottom: '1px solid #f3f4f6',
+                        borderBottom: '1px solid var(--border)',
                         padding: '6px 0',
                       }}
                     >
-                      <div style={{ color: '#374151' }}>{k}</div>
+                      <div style={{ color: 'var(--text-h)' }}>{k}</div>
                       <div style={{ fontWeight: 700 }}>{v}</div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p style={{ margin: 0, color: '#6b7280' }}>No data</p>
+                <p className="muted">No data</p>
               )}
             </Card>
           </div>
@@ -115,7 +117,7 @@ export function DashboardPage() {
             {recent && recent.length ? (
               <table width="100%" cellPadding={8} style={{ borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={{ textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>
+                  <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border)' }}>
                     <th>Student</th>
                     <th>Risk score</th>
                     <th>Confidence</th>
@@ -124,7 +126,7 @@ export function DashboardPage() {
                 </thead>
                 <tbody>
                   {recent.map((r) => (
-                    <tr key={r.prediction_id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                    <tr key={r.prediction_id} style={{ borderBottom: '1px solid var(--border)' }}>
                       <td>{r.student_id}</td>
                       <td>{r.risk_score.toFixed(3)}</td>
                       <td>{r.confidence_score.toFixed(3)}</td>
@@ -134,7 +136,7 @@ export function DashboardPage() {
                 </tbody>
               </table>
             ) : (
-              <p style={{ margin: 0, color: '#6b7280' }}>No high-risk predictions yet.</p>
+              <p className="muted">No high-risk predictions yet.</p>
             )}
           </Card>
         </div>
@@ -152,7 +154,7 @@ function RiskBars({ dist }: { dist: RiskDistribution }) {
       <Bar label="High" value={dist.High ?? 0} percent={pct(dist.High ?? 0)} color="crimson" />
       <Bar label="Medium" value={dist.Medium ?? 0} percent={pct(dist.Medium ?? 0)} color="#b26a00" />
       <Bar label="Low" value={dist.Low ?? 0} percent={pct(dist.Low ?? 0)} color="green" />
-      <div style={{ fontSize: 12, color: '#6b7280' }}>Total: {total}</div>
+      <div style={{ fontSize: 12, color: 'var(--text)' }}>Total: {total}</div>
     </div>
   )
 }
@@ -170,13 +172,13 @@ function Bar({
 }) {
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#374151' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-h)' }}>
         <div>
           <strong style={{ color }}>{label}</strong> — {value}
         </div>
         <div>{percent}%</div>
       </div>
-      <div style={{ height: 10, borderRadius: 999, background: '#f3f4f6', overflow: 'hidden', marginTop: 6 }}>
+      <div style={{ height: 10, borderRadius: 999, background: 'rgba(0,0,0,0.18)', overflow: 'hidden', marginTop: 6 }}>
         <div style={{ width: `${percent}%`, height: '100%', background: color }} />
       </div>
     </div>

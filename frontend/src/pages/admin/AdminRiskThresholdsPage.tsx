@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { api } from '../../lib/api'
 
 type Thresholds = {
@@ -61,14 +61,17 @@ export function AdminRiskThresholdsPage() {
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: '32px auto', padding: 16 }}>
-      <h1 style={{ marginTop: 0 }}>Admin — Risk thresholds</h1>
+    <div className="page" style={{ maxWidth: 900 }}>
+      <div className="pageHeader" style={{ justifyContent: 'center' }}>
+        <h1>Admin — Risk thresholds</h1>
+      </div>
       {loading ? <p>Loading…</p> : null}
-      {error ? <p style={{ color: 'crimson' }}>{error}</p> : null}
-      {message ? <p style={{ color: 'green' }}>{message}</p> : null}
+      {error ? <p className="error">{error}</p> : null}
+      {message ? <p className="success">{message}</p> : null}
 
       {data ? (
-        <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12, maxWidth: 420 }}>
+        <div className="card" style={{ maxWidth: 520, margin: '0 auto' }}>
+          <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12 }}>
           <label style={{ display: 'grid', gap: 6 }}>
             High threshold (0–1)
             <input value={high} onChange={(e) => setHigh(e.target.value)} />
@@ -83,10 +86,11 @@ export function AdminRiskThresholdsPage() {
             {saving ? 'Saving…' : 'Save'}
           </button>
 
-          <div style={{ color: '#6b7280', fontSize: 12 }}>
+          <div className="muted" style={{ fontSize: 12 }}>
             Note: Medium must be less than High. These thresholds affect risk level labeling.
           </div>
-        </form>
+          </form>
+        </div>
       ) : null}
     </div>
   )

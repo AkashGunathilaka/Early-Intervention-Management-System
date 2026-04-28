@@ -13,52 +13,37 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   const isActive = (path: string) => (loc.pathname === path ? true : loc.pathname.startsWith(path + '/'))
 
-  const linkStyle = (active: boolean): React.CSSProperties => ({
-    padding: '8px 10px',
-    borderRadius: 10,
-    textDecoration: 'none',
-    color: active ? '#111827' : '#374151',
-    background: active ? '#f3f4f6' : 'transparent',
-    fontWeight: active ? 700 : 500,
-  })
-
   return (
     <div>
-      <header
-        style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 10,
-          background: 'white',
-          borderBottom: '1px solid #e5e7eb',
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 1100,
-            margin: '0 auto',
-            padding: '10px 16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-          }}
-        >
+      <header className="topbar">
+        <div className="topbarInner">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ fontWeight: 800 }}>EIMS</div>
-            <nav style={{ display: 'flex', gap: 6 }}>
-              <Link to="/dashboard" style={linkStyle(isActive('/dashboard'))}>
+            <div className="brand">EIMS</div>
+            <nav className="navLinks">
+              <Link to="/dashboard" className={`navLink ${isActive('/dashboard') ? 'navLinkActive' : ''}`}>
                 Dashboard
               </Link>
-              <Link to="/students" style={linkStyle(isActive('/students'))}>
+              <Link to="/students" className={`navLink ${isActive('/students') ? 'navLinkActive' : ''}`}>
                 Students
+              </Link>
+              <Link to="/change-password" className={`navLink ${isActive('/change-password') ? 'navLinkActive' : ''}`}>
+                Password
               </Link>
               {user?.role === 'admin' ? (
                 <>
-                  <Link to="/admin/models" style={linkStyle(isActive('/admin/models'))}>
+                  <Link to="/admin/models" className={`navLink ${isActive('/admin/models') ? 'navLinkActive' : ''}`}>
                     Models
                   </Link>
-                  <Link to="/admin/risk-thresholds" style={linkStyle(isActive('/admin/risk-thresholds'))}>
+                  <Link to="/admin/ml" className={`navLink ${isActive('/admin/ml') ? 'navLinkActive' : ''}`}>
+                    ML
+                  </Link>
+                  <Link to="/admin/data" className={`navLink ${isActive('/admin/data') ? 'navLinkActive' : ''}`}>
+                    Data
+                  </Link>
+                  <Link to="/admin/users" className={`navLink ${isActive('/admin/users') ? 'navLinkActive' : ''}`}>
+                    Users
+                  </Link>
+                  <Link to="/admin/risk-thresholds" className={`navLink ${isActive('/admin/risk-thresholds') ? 'navLinkActive' : ''}`}>
                     Thresholds
                   </Link>
                 </>
@@ -67,7 +52,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ color: '#6b7280', fontSize: 12 }}>{user?.email ?? ''}</div>
+            <div style={{ color: 'var(--text)', fontSize: 12 }}>{user?.email ?? ''}</div>
             <button onClick={logout}>Logout</button>
           </div>
         </div>
