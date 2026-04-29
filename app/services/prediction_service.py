@@ -8,7 +8,7 @@ from app.ml.predictor import generate_prediction
 from app.models.risk_threshold import RiskThreshold
 
 
-def predict_for_student(student_id: int, db: Session) -> Prediction:
+def predict_for_student(student_id: int, db: Session, *, explain: bool = True) -> Prediction:
     feature_snapshot = (
         db.query(FeatureSnapshot)
         .filter(FeatureSnapshot.student_id == student_id)
@@ -63,7 +63,7 @@ def predict_for_student(student_id: int, db: Session) -> Prediction:
         predicted_label=prediction_result["predicted_label"],
         risk_level=risk_level,
         confidence_score=prediction_result["confidence_score"],
-        top_factors=prediction_result["top_factors"],
+        top_factors=prediction_result["top_factors"] if explain else None,
     )
 
     db.add(new_prediction)

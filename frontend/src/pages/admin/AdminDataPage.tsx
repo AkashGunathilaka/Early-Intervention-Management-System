@@ -4,7 +4,7 @@ import { Card } from '../../components/ui/Card'
 
 type ImportResult = {
   dataset_id: number
-  early_days: number
+  early_days: number | null
   created_students: number
   created_feature_snapshots: number
   created_predictions: number
@@ -12,12 +12,9 @@ type ImportResult = {
 
 export function AdminDataPage() {
   const [datasetId, setDatasetId] = useState('')
-  const [studentInfoPath, setStudentInfoPath] = useState('')
-  const [studentVlePath, setStudentVlePath] = useState('')
-  const [studentAssessmentPath, setStudentAssessmentPath] = useState('')
-  const [assessmentsPath, setAssessmentsPath] = useState('')
-  const [earlyDays, setEarlyDays] = useState('30')
+  const [csvPath, setCsvPath] = useState('')
   const [generatePredictions, setGeneratePredictions] = useState(true)
+  const [upsertStudents, setUpsertStudents] = useState(true)
 
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -28,12 +25,10 @@ export function AdminDataPage() {
     setResult(null)
 
     const dsId = Number(datasetId)
-    const ed = Number(earlyDays)
     if (!Number.isFinite(dsId)) return setError('Please enter a valid dataset_id')
-    if (!Number.isFinite(ed) || ed <= 0) return setError('Please enter a valid early_days')
 
-    if (!studentInfoPath.trim() || !studentVlePath.trim() || !studentAssessmentPath.trim() || !assessmentsPath.trim()) {
-      return setError('Please fill in all OULAD CSV file paths (server paths).')
+    if (!csvPath.trim()) {
+      return setError('Please enter a CSV path (must be under uploads/).')
     }
 
     setRunning(true)
@@ -41,12 +36,9 @@ export function AdminDataPage() {
       const res = await api.post<ImportResult>('/admin/data/import-oulad', null, {
         params: {
           dataset_id: dsId,
-          student_info_path: studentInfoPath.trim(),
-          student_vle_path: studentVlePath.trim(),
-          student_assessment_path: studentAssessmentPath.trim(),
-          assessments_path: assessmentsPath.trim(),
-          early_days: ed,
+          csv_path: csvPath.trim(),
           generate_predictions: generatePredictions,
+          upsert_students: upsertStudents,
         },
       })
       setResult(res.data)
@@ -62,14 +54,16 @@ export function AdminDataPage() {
       <div className="pageHeader">
         <div style={{ display: 'grid', gap: 6 }}>
           <h1>Admin — Data</h1>
-          <p className="muted">Import raw OULAD CSVs into the database (students + feature snapshots), optionally generating predictions as well.</p>
+          <p className="muted">
+            Bulk import Students + Feature Snapshots from a single CSV (matching your app’s column names), optionally generating predictions as well.
+          </p>
         </div>
       </div>
 
       {error ? <p className="error">{error}</p> : null}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
-        <Card title="Import OULAD CSVs → DB">
+        <Card title="Import students CSV → DB">
           <div style={{ display: 'grid', gap: 10 }}>
             <label style={{ display: 'grid', gap: 6 }}>
               dataset_id
@@ -77,48 +71,41 @@ export function AdminDataPage() {
             </label>
 
             <label style={{ display: 'grid', gap: 6 }}>
-              studentInfo.csv path
-              <input value={studentInfoPath} onChange={(e) => setStudentInfoPath(e.target.value)} placeholder="/abs/path/studentInfo.csv" />
+              CSV path (under uploads/)
+              <input value={csvPath} onChange={(e) => setCsvPath(e.target.value)} placeholder="uploads/my_students.csv" />
             </label>
 
-            <label style={{ display: 'grid', gap: 6 }}>
-              studentVle.csv path
-              <input value={studentVlePath} onChange={(e) => setStudentVlePath(e.target.value)} placeholder="/abs/path/studentVle.csv" />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+              <input type="checkbox" checked={generatePredictions} onChange={(e) => setGeneratePredictions(e.target.checked)} />
+              Generate predictions
             </label>
 
-            <label style={{ display: 'grid', gap: 6 }}>
-              studentAssessment.csv path
-              <input
-                value={studentAssessmentPath}
-                onChange={(e) => setStudentAssessmentPath(e.target.value)}
-                placeholder="/abs/path/studentAssessment.csv"
-              />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 0 }}>
+              <input type="checkbox" checked={upsertStudents} onChange={(e) => setUpsertStudents(e.target.checked)} />
+              Upsert students by student_id (if provided)
             </label>
-
-            <label style={{ display: 'grid', gap: 6 }}>
-              assessments.csv path
-              <input value={assessmentsPath} onChange={(e) => setAssessmentsPath(e.target.value)} placeholder="/abs/path/assessments.csv" />
-            </label>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <label style={{ display: 'grid', gap: 6 }}>
-                early_days
-                <input value={earlyDays} onChange={(e) => setEarlyDays(e.target.value)} />
-              </label>
-
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 24 }}>
-                <input type="checkbox" checked={generatePredictions} onChange={(e) => setGeneratePredictions(e.target.checked)} />
-                Generate predictions
-              </label>
-            </div>
 
             <button onClick={runImport} disabled={running}>
               {running ? 'Importing…' : 'Run import'}
             </button>
 
             <div className="muted" style={{ fontSize: 12 }}>
-              Note: these paths must exist on the backend server filesystem. For demo, point to your local `Data/` CSVs.
+              Note: the CSV must be accessible to the backend under `uploads/` (for safety).
             </div>
+
+            <details>
+              <summary style={{ cursor: 'pointer' }}>Expected CSV columns</summary>
+              <pre style={{ whiteSpace: 'pre-wrap' }}>
+{`# Student (required)
+code_module, code_presentation, gender, region, highest_education, imd_band, age_band, num_of_prev_attempts, studied_credits, disability
+
+# Snapshot (required)
+days_from_start, total_clicks, avg_clicks, vle_records, avg_score, total_score, assessment_count, avg_weight
+
+# Optional
+student_id, at_risk_label`}
+              </pre>
+            </details>
           </div>
         </Card>
 
@@ -126,7 +113,7 @@ export function AdminDataPage() {
           {result ? (
             <div style={{ display: 'grid', gap: 8 }}>
               <Row k="dataset_id" v={result.dataset_id} />
-              <Row k="early_days" v={result.early_days} />
+              <Row k="early_days" v={result.early_days ?? '-'} />
               <Row k="created_students" v={result.created_students} />
               <Row k="created_feature_snapshots" v={result.created_feature_snapshots} />
               <Row k="created_predictions" v={result.created_predictions} />

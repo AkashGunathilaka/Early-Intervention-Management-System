@@ -3,6 +3,7 @@ from pathlib import Path
 from functools import lru_cache
 
 import pandas as pd
+import numpy as np
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -92,7 +93,87 @@ def generate_prediction(feature_snapshot, model_path: str | None = None, feature
     confidence_score = float(max(probs))
     risk_level = get_risk_level(risk_score)
 
-    top_factors = "Feature importance unavailable"
+    top_factors = _explain_top_factors(model=model, df=df, cache_key=_get_model_cache_key(model_path))
+
+    return {
+    "risk_score": risk_score,
+    "predicted_label": predicted_label,
+    "risk_level": risk_level,
+    "confidence_score": confidence_score,
+    "top_factors": top_factors,
+    }
+
+def clear_model_cache() -> None:
+    load_model.cache_clear()
+    load_feature_columns.cache_clear()
+
+
+_EXPLAINER_CACHE: dict[str, object] = {}
+
+
+def _get_model_cache_key(model_path: str | None) -> str:
+    # Keyed by artifact path so we don't mix explainers across models.
+    # If no model_path provided, fall back to the default MODEL_PATH.
+    p = Path(model_path) if model_path else MODEL_PATH
+    if not p.is_absolute():
+        p = BASE_DIR / p
+    return str(p.resolve())
+
+
+def _explain_top_factors(model, df: pd.DataFrame, cache_key: str) -> str:
+    """
+    Compute per-row top factors.
+
+    Preferred: SHAP TreeExplainer values (per-student local attribution).
+    Fallback: global feature_importances_ weighted by |value| (less accurate).
+    """
+    # 1) Try SHAP (best)
+    try:
+        import shap  # heavy import; only used when needed
+
+        # Cache the explainer by model artifact path to keep repeated calls fast.
+        # (Bulk dataset regenerate can still be heavy if enabled; we generally avoid SHAP there.)
+        explainer = _EXPLAINER_CACHE.get(cache_key)
+        if explainer is None:
+            explainer = shap.TreeExplainer(model)
+            _EXPLAINER_CACHE[cache_key] = explainer
+
+        exp = explainer(df)
+        values = getattr(exp, "values", None)
+        if values is None:
+            raise RuntimeError("SHAP explanation missing values")
+
+        # Binary classifiers sometimes return list-like shap arrays; handle both.
+        if isinstance(values, list):
+            # choose positive class if available, else first
+            vals = np.asarray(values[1] if len(values) > 1 else values[0])
+        else:
+            vals = np.asarray(values)
+
+        # Expected shape: (1, n_features)
+        row_vals = vals[0]
+        abs_vals = np.abs(row_vals)
+        if not np.any(abs_vals):
+            return "No non-zero SHAP contributions found"
+
+        top_idx = np.argsort(abs_vals)[::-1][:5]
+        row_values = df.iloc[0]
+
+        parts: list[str] = []
+        for i in top_idx:
+            name = str(df.columns[int(i)])
+            shap_val = float(abs_vals[int(i)])
+            feat_val = float(row_values[name])
+            if shap_val <= 0:
+                continue
+            # Keep frontend parsing stable: "importance=" is now |SHAP value|.
+            parts.append(f"{name} (value={feat_val:.2f}, importance={shap_val:.4f})")
+
+        return "; ".join(parts) if parts else "No non-zero SHAP contributions found"
+    except Exception:
+        pass
+
+    # 2) Fallback: feature_importances_ (global) * |value|
     if hasattr(model, "feature_importances_"):
         try:
             importances = model.feature_importances_
@@ -109,23 +190,12 @@ def generate_prediction(feature_snapshot, model_path: str | None = None, feature
             top = contribution_rows[:5]
 
             if top:
-                top_factors = "; ".join(
+                return "; ".join(
                     f"{name} (value={value:.2f}, importance={importance:.4f})"
                     for name, _, value, importance in top
                 )
-            else:
-                top_factors = "No non-zero feature contributions found"
+            return "No non-zero feature contributions found"
         except Exception:
-            top_factors = "Feature importance computation failed"
+            return "Feature importance computation failed"
 
-    return {
-    "risk_score": risk_score,
-    "predicted_label": predicted_label,
-    "risk_level": risk_level,
-    "confidence_score": confidence_score,
-    "top_factors": top_factors,
-    }
-
-def clear_model_cache() -> None:
-    load_model.cache_clear()
-    load_feature_columns.cache_clear()
+    return "Feature importance unavailable"

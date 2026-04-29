@@ -22,11 +22,14 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 def _resolve_under_uploads(raw_path: str) -> Path:
     """
     Prevent arbitrary filesystem access by forcing all admin-supplied paths to live under ./uploads.
-    This keeps the demo safe if it's ever deployed.
+    This reduces the blast radius if this endpoint is exposed in a real deployment.
     """
     base = UPLOAD_DIR.resolve()
     p = Path(raw_path).expanduser()
     if not p.is_absolute():
+        # Accept both "file.csv" and "uploads/file.csv" without double-prefixing
+        if p.parts and p.parts[0] == UPLOAD_DIR.name:
+            p = Path(*p.parts[1:])
         p = UPLOAD_DIR / p
     resolved = p.resolve()
     if base != resolved and base not in resolved.parents:

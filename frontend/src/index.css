@@ -156,6 +156,12 @@ textarea {
   padding: 10px 12px;
   outline: none;
 }
+
+input[type='checkbox'],
+input[type='radio'] {
+  width: auto;
+  padding: 0;
+}
 textarea {
   resize: vertical;
 }

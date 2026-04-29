@@ -11,7 +11,7 @@ class Student(Base):
 
     dataset_id = Column(Integer, ForeignKey("datasets.dataset_id"), nullable=False)
 
-    # demographic / academic info
+    # Student attributes used for cohorting and potential model features
     code_module = Column(String)
     code_presentation = Column(String)
 

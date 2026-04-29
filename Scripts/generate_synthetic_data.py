@@ -16,10 +16,10 @@ def clamp(x: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, x))
 
 
-def get_or_create_demo_dataset(db: Session) -> Dataset:
+def get_or_create_synthetic_dataset(db: Session) -> Dataset:
     ds = (
         db.query(Dataset)
-        .filter(Dataset.dataset_name == "Synthetic Demo Dataset")
+        .filter(Dataset.dataset_name == "Synthetic Dataset")
         .first()
     )
     if ds:
@@ -36,7 +36,7 @@ def get_or_create_demo_dataset(db: Session) -> Dataset:
         )
 
     ds = Dataset(
-        dataset_name="Synthetic Demo Dataset",
+        dataset_name="Synthetic Dataset",
         source_type="synthetic",
         status="active",
         uploaded_by=user.user_id,
@@ -83,7 +83,8 @@ def synthetic_student_row(dataset_id: int) -> Student:
 def synthetic_snapshot(days_from_start: int, persona: str) -> FeatureSnapshot:
     """
     persona in {"low", "medium", "high"} controls plausible ranges.
-    This is NOT leakage; it's just synthetic correlation to make demo meaningful.
+    This intentionally injects correlation so the ML workflow produces non-trivial outputs.
+    It should not be used to validate real-world model performance.
     """
     if persona == "high":  # high risk: low engagement + low assessment
         total_clicks = random.uniform(10, 80)
@@ -126,7 +127,7 @@ def synthetic_snapshot(days_from_start: int, persona: str) -> FeatureSnapshot:
 def main(count: int = 100) -> None:
     db = SessionLocal()
     try:
-        ds = get_or_create_demo_dataset(db)
+        ds = get_or_create_synthetic_dataset(db)
 
         created_student_ids = [s.student_id for s in db.query(Student).filter(Student.dataset_id == ds.dataset_id).all()]
 

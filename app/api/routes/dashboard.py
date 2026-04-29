@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -11,27 +11,40 @@ from app.models.user import User
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
-def latest_prediction_ids_subquery(db: Session):
+def latest_prediction_ids_subquery(db: Session, dataset_id: int | None = None):
+    q = db.query(
+        Prediction.student_id,
+        func.max(Prediction.prediction_id).label("max_pid"),
+    ).group_by(Prediction.student_id)
+
+    if dataset_id is not None:
+        q = q.join(Student, Student.student_id == Prediction.student_id).filter(Student.dataset_id == dataset_id)
+
     return (
-        db.query(
-            Prediction.student_id,
-            func.max(Prediction.prediction_id).label("max_pid"),
-        )
-        .group_by(Prediction.student_id)
-        .subquery()
+        q.subquery()
     )
 
 
 @router.get("/summary")
 def get_dashboard_summary(
+    dataset_id: int | None = Query(default=None, description="Filter dashboard to a single dataset/cohort"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    total_students = db.query(func.count(Student.student_id)).scalar() or 0
-    total_predictions = db.query(func.count(Prediction.prediction_id)).scalar() or 0
-    total_interventions = db.query(func.count(Intervention.intervention_id)).scalar() or 0
+    s_q = db.query(func.count(Student.student_id))
+    p_q = db.query(func.count(Prediction.prediction_id)).join(Student, Student.student_id == Prediction.student_id)
+    i_q = db.query(func.count(Intervention.intervention_id)).join(Student, Student.student_id == Intervention.student_id)
 
-    latest_pred_ids = latest_prediction_ids_subquery(db)
+    if dataset_id is not None:
+        s_q = s_q.filter(Student.dataset_id == dataset_id)
+        p_q = p_q.filter(Student.dataset_id == dataset_id)
+        i_q = i_q.filter(Student.dataset_id == dataset_id)
+
+    total_students = s_q.scalar() or 0
+    total_predictions = p_q.scalar() or 0
+    total_interventions = i_q.scalar() or 0
+
+    latest_pred_ids = latest_prediction_ids_subquery(db, dataset_id=dataset_id)
 
     latest_preds = (
         db.query(Prediction.risk_level, func.count(Prediction.prediction_id))
@@ -58,10 +71,11 @@ def get_dashboard_summary(
 
 @router.get("/risk-distribution")
 def get_risk_distribution(
+    dataset_id: int | None = Query(default=None, description="Filter dashboard to a single dataset/cohort"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    latest_pred_ids = latest_prediction_ids_subquery(db)
+    latest_pred_ids = latest_prediction_ids_subquery(db, dataset_id=dataset_id)
 
     rows = (
         db.query(Prediction.risk_level, func.count(Prediction.prediction_id))
@@ -79,16 +93,14 @@ def get_risk_distribution(
 @router.get("/recent-high-risk")
 def get_recent_high_risk(
     limit: int = 10,
+    dataset_id: int | None = Query(default=None, description="Filter dashboard to a single dataset/cohort"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    rows = (
-        db.query(Prediction)
-        .filter(Prediction.risk_level == "High")
-        .order_by(Prediction.prediction_date.desc())
-        .limit(limit)
-        .all()
-    )
+    q = db.query(Prediction).join(Student, Student.student_id == Prediction.student_id).filter(Prediction.risk_level == "High")
+    if dataset_id is not None:
+        q = q.filter(Student.dataset_id == dataset_id)
+    rows = q.order_by(Prediction.prediction_date.desc()).limit(limit).all()
 
     return [
         {
@@ -104,13 +116,15 @@ def get_recent_high_risk(
 
 @router.get("/intervention-status")
 def get_intervention_status(
+    dataset_id: int | None = Query(default=None, description="Filter dashboard to a single dataset/cohort"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    rows = (
-        db.query(Intervention.action_status, func.count(Intervention.intervention_id))
-        .group_by(Intervention.action_status)
-        .all()
+    q = db.query(Intervention.action_status, func.count(Intervention.intervention_id)).join(
+        Student, Student.student_id == Intervention.student_id
     )
+    if dataset_id is not None:
+        q = q.filter(Student.dataset_id == dataset_id)
+    rows = q.group_by(Intervention.action_status).all()
 
     return {status: count for status, count in rows}

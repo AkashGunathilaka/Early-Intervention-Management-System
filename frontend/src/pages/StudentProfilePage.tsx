@@ -19,6 +19,7 @@ type Prediction = {
 
 type Snapshot = {
   feature_id: number
+  days_from_start?: number
   total_clicks: number
   avg_clicks: number
   vle_records: number
@@ -69,6 +70,13 @@ type InterventionSuggestions = {
   suggestions: string[]
 }
 
+type FeatureAverages = {
+  dataset_id: number
+  days_from_start: number
+  n_snapshots: number
+  averages: Record<string, number>
+}
+
 export function StudentProfilePage() {
   const { id } = useParams()
   const studentId = Number(id)
@@ -84,6 +92,21 @@ export function StudentProfilePage() {
   const [loadingSuggestions, setLoadingSuggestions] = useState(false)
   const [creatingIntervention, setCreatingIntervention] = useState(false)
   const [updatingInterventionId, setUpdatingInterventionId] = useState<number | null>(null)
+  const [featureAverages, setFeatureAverages] = useState<FeatureAverages | null>(null)
+  const [snapshotHistory, setSnapshotHistory] = useState<Snapshot[]>([])
+  const [predictionHistory, setPredictionHistory] = useState<Prediction[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
+
+  const [creatingSnapshot, setCreatingSnapshot] = useState(false)
+  const [snapDays, setSnapDays] = useState<number>(30)
+  const [snapTotalClicks, setSnapTotalClicks] = useState<number>(0)
+  const [snapAvgClicks, setSnapAvgClicks] = useState<number>(0)
+  const [snapVleRecords, setSnapVleRecords] = useState<number>(0)
+  const [snapAvgScore, setSnapAvgScore] = useState<number>(0)
+  const [snapTotalScore, setSnapTotalScore] = useState<number>(0)
+  const [snapAssessmentCount, setSnapAssessmentCount] = useState<number>(0)
+  const [snapAvgWeight, setSnapAvgWeight] = useState<number>(0)
+  const [snapAutoPredict, setSnapAutoPredict] = useState<boolean>(true)
 
   const [newAction, setNewAction] = useState('')
   const [newPriority, setNewPriority] = useState<'low' | 'medium' | 'high' | string>('medium')
@@ -175,6 +198,61 @@ export function StudentProfilePage() {
     }
   }
 
+  async function loadHistory(cancelledRef?: { cancelled: boolean }) {
+    setLoadingHistory(true)
+    try {
+      const [snapRes, predRes] = await Promise.all([
+        api.get<Snapshot[]>(`/feature-snapshots/student/${studentId}`),
+        api.get<Prediction[]>(`/predictions/student/${studentId}`),
+      ])
+      if (cancelledRef?.cancelled) return
+      // newest first
+      setSnapshotHistory(snapRes.data.slice().sort((a, b) => (a.feature_id < b.feature_id ? 1 : -1)))
+      setPredictionHistory(predRes.data.slice().sort((a, b) => (a.prediction_id < b.prediction_id ? 1 : -1)))
+    } catch {
+      if (!cancelledRef?.cancelled) {
+        setSnapshotHistory([])
+        setPredictionHistory([])
+      }
+    } finally {
+      if (!cancelledRef?.cancelled) setLoadingHistory(false)
+    }
+  }
+
+  async function createSnapshot() {
+    setCreatingSnapshot(true)
+    setError(null)
+    try {
+      if (latestDays != null && snapDays < latestDays) {
+        setError(`days_from_start must be ≥ ${latestDays}`)
+        return
+      }
+      await api.post('/feature-snapshots/', {
+        student_id: studentId,
+        days_from_start: snapDays,
+        total_clicks: snapTotalClicks,
+        avg_clicks: snapAvgClicks,
+        vle_records: snapVleRecords,
+        avg_score: snapAvgScore,
+        total_score: snapTotalScore,
+        assessment_count: snapAssessmentCount,
+        avg_weight: snapAvgWeight,
+        at_risk_label: null,
+      })
+
+      if (snapAutoPredict) {
+        await api.post(`/predictions/generate/${studentId}`)
+      }
+
+      await loadProfile()
+      await loadHistory()
+    } catch (err: any) {
+      setError(err?.response?.data?.detail ?? 'Failed to create feature snapshot')
+    } finally {
+      setCreatingSnapshot(false)
+    }
+  }
+
   async function loadSuggestions() {
     setLoadingSuggestions(true)
     setError(null)
@@ -257,7 +335,9 @@ export function StudentProfilePage() {
     const ref = { cancelled: false }
     loadProfile(ref)
     setSuggestions(null)
+    setFeatureAverages(null)
     setCompare(null)
+    loadHistory(ref)
 
     return () => {
       ref.cancelled = true
@@ -266,6 +346,39 @@ export function StudentProfilePage() {
 
   const prediction = data?.latest_prediction ?? null
   const snapshot = data?.latest_feature_snapshot ?? null
+  const latestDays = snapshot?.days_from_start ?? null
+
+  useEffect(() => {
+    if (!snapshot) {
+      setFeatureAverages(null)
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await api.get<FeatureAverages>(`/students/${studentId}/feature-averages`)
+        if (!cancelled) setFeatureAverages(res.data)
+      } catch {
+        if (!cancelled) setFeatureAverages(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [studentId, snapshot?.feature_id])
+
+  // Prefill snapshot form from latest snapshot (so "update" is easy)
+  useEffect(() => {
+    if (!snapshot) return
+    setSnapDays(snapshot.days_from_start ?? 30)
+    setSnapTotalClicks(Number(snapshot.total_clicks ?? 0))
+    setSnapAvgClicks(Number(snapshot.avg_clicks ?? 0))
+    setSnapVleRecords(Number(snapshot.vle_records ?? 0))
+    setSnapAvgScore(Number(snapshot.avg_score ?? 0))
+    setSnapTotalScore(Number(snapshot.total_score ?? 0))
+    setSnapAssessmentCount(Number(snapshot.assessment_count ?? 0))
+    setSnapAvgWeight(Number(snapshot.avg_weight ?? 0))
+  }, [snapshot?.feature_id])
 
   return (
     <div className="page" style={{ maxWidth: 1100 }}>
@@ -285,9 +398,9 @@ export function StudentProfilePage() {
           </div>
         </div>
 
-        {!loading && data && !prediction ? (
+        {!loading && data ? (
           <button onClick={generatePrediction} disabled={generating}>
-            {generating ? 'Generating…' : 'Generate prediction'}
+            {generating ? 'Generating…' : prediction ? 'Regenerate prediction' : 'Generate prediction'}
           </button>
         ) : null}
       </div>
@@ -333,8 +446,19 @@ export function StudentProfilePage() {
                   <div style={{ marginTop: 12 }}>
                     <div style={{ fontSize: 12, color: 'var(--text)' }}>Top factors</div>
                     <div style={{ marginTop: 8 }}>
-                      <TopFactors value={prediction.top_factors} />
+                      <TopFactors value={prediction.top_factors} averages={featureAverages?.averages ?? null} />
                     </div>
+                    {!prediction.top_factors ? (
+                      <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+                        If this prediction was created via bulk generation, explanations may be empty for performance. Click{' '}
+                        <strong style={{ color: 'var(--text-h)' }}>Regenerate prediction</strong> to compute SHAP top factors for this student.
+                      </div>
+                    ) : null}
+                    {featureAverages ? (
+                      <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+                        Averages: dataset_id={featureAverages.dataset_id} days={featureAverages.days_from_start} (n={featureAverages.n_snapshots})
+                      </div>
+                    ) : null}
                   </div>
                 </>
               ) : (
@@ -409,6 +533,152 @@ export function StudentProfilePage() {
             ) : (
               <p className="muted">No feature snapshot found.</p>
             )}
+          </Card>
+
+          <Card title="Progress over time (snapshots + risk trend)">
+            <div style={{ display: 'grid', gap: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div>
+                  <div style={{ fontWeight: 800, marginBottom: 8 }}>Risk score trend</div>
+                  {loadingHistory ? <div className="muted">Loading…</div> : null}
+                  {predictionHistory.length ? (
+                    <Sparkline
+                      values={predictionHistory.slice().reverse().map((p) => p.risk_score)}
+                      labels={predictionHistory
+                        .slice()
+                        .reverse()
+                        .map((p) => (p.prediction_date ? String(p.prediction_date).slice(0, 10) : String(p.prediction_id)))}
+                    />
+                  ) : (
+                    <div className="muted">No predictions yet.</div>
+                  )}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 800, marginBottom: 8 }}>Feature trends (latest snapshots)</div>
+                  {snapshotHistory.length ? (
+                    <div style={{ display: 'grid', gap: 10 }}>
+                      <MiniSpark
+                        title="total_clicks"
+                        values={snapshotHistory.slice().reverse().map((s) => Number(s.total_clicks ?? 0))}
+                        labels={snapshotHistory.slice().reverse().map((s) => String(s.days_from_start ?? '-'))}
+                      />
+                      <MiniSpark
+                        title="avg_score"
+                        values={snapshotHistory.slice().reverse().map((s) => Number(s.avg_score ?? 0))}
+                        labels={snapshotHistory.slice().reverse().map((s) => String(s.days_from_start ?? '-'))}
+                      />
+                    </div>
+                  ) : (
+                    <div className="muted">No snapshots yet.</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="card" style={{ boxShadow: 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ fontWeight: 800 }}>Add new snapshot</div>
+                    <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+                      Save a new engineered feature snapshot for this student (e.g. day 7, 14, 30) to track progress. Optionally auto-generate a new prediction.
+                    </div>
+                  </div>
+                  <button onClick={createSnapshot} disabled={creatingSnapshot}>
+                    {creatingSnapshot ? 'Saving…' : 'Save snapshot'}
+                  </button>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginTop: 12 }}>
+                  <label style={{ display: 'grid', gap: 6 }}>
+                    days_from_start
+                    <input
+                      type="number"
+                      value={snapDays}
+                      min={latestDays != null ? latestDays : undefined}
+                      onChange={(e) => {
+                        const raw = Number(e.target.value)
+                        const next = Number.isFinite(raw) ? raw : 0
+                        setSnapDays(latestDays != null ? Math.max(latestDays, next) : next)
+                      }}
+                    />
+                    {latestDays != null ? (
+                      <div className="muted" style={{ fontSize: 12 }}>
+                        Must be ≥ current {latestDays}
+                      </div>
+                    ) : null}
+                  </label>
+                  <label style={{ display: 'grid', gap: 6 }}>
+                    total_clicks
+                    <input type="number" value={snapTotalClicks} onChange={(e) => setSnapTotalClicks(Number(e.target.value))} />
+                  </label>
+                  <label style={{ display: 'grid', gap: 6 }}>
+                    avg_clicks
+                    <input type="number" value={snapAvgClicks} onChange={(e) => setSnapAvgClicks(Number(e.target.value))} />
+                  </label>
+                  <label style={{ display: 'grid', gap: 6 }}>
+                    vle_records
+                    <input type="number" value={snapVleRecords} onChange={(e) => setSnapVleRecords(Number(e.target.value))} />
+                  </label>
+                  <label style={{ display: 'grid', gap: 6 }}>
+                    avg_score
+                    <input type="number" value={snapAvgScore} onChange={(e) => setSnapAvgScore(Number(e.target.value))} />
+                  </label>
+                  <label style={{ display: 'grid', gap: 6 }}>
+                    total_score
+                    <input type="number" value={snapTotalScore} onChange={(e) => setSnapTotalScore(Number(e.target.value))} />
+                  </label>
+                  <label style={{ display: 'grid', gap: 6 }}>
+                    assessment_count
+                    <input type="number" value={snapAssessmentCount} onChange={(e) => setSnapAssessmentCount(Number(e.target.value))} />
+                  </label>
+                  <label style={{ display: 'grid', gap: 6 }}>
+                    avg_weight
+                    <input type="number" value={snapAvgWeight} onChange={(e) => setSnapAvgWeight(Number(e.target.value))} />
+                  </label>
+                </div>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+                  <input type="checkbox" checked={snapAutoPredict} onChange={(e) => setSnapAutoPredict(e.target.checked)} />
+                  Auto-generate prediction after saving snapshot
+                </label>
+              </div>
+
+              <div>
+                <div style={{ fontWeight: 800, marginBottom: 8 }}>Snapshot history</div>
+                {snapshotHistory.length ? (
+                  <table width="100%" cellPadding={8} style={{ borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border)' }}>
+                        <th>feature_id</th>
+                        <th>days</th>
+                        <th>total_clicks</th>
+                        <th>avg_score</th>
+                        <th>assessments</th>
+                        <th>avg_weight</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {snapshotHistory.slice(0, 10).map((s) => (
+                        <tr key={s.feature_id} style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td>{s.feature_id}</td>
+                          <td>{s.days_from_start ?? '-'}</td>
+                          <td>{Number(s.total_clicks ?? 0).toFixed(0)}</td>
+                          <td>{Number(s.avg_score ?? 0).toFixed(2)}</td>
+                          <td>{Number(s.assessment_count ?? 0).toFixed(0)}</td>
+                          <td>{Number(s.avg_weight ?? 0).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="muted">No snapshots for this student yet.</div>
+                )}
+                {snapshotHistory.length > 10 ? (
+                  <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+                    Showing latest 10 snapshots. Full history is available in “Feature snapshots”.
+                  </div>
+                ) : null}
+              </div>
+            </div>
           </Card>
 
           <Card title="Interventions">
@@ -658,7 +928,7 @@ function parseTopFactors(input: string): TopFactorRow[] | null {
   return rows.length ? rows : null
 }
 
-function TopFactors({ value }: { value: string | null }) {
+function TopFactors({ value, averages }: { value: string | null; averages: Record<string, number> | null }) {
   if (!value) return <div className="muted">-</div>
 
   const parsed = parseTopFactors(value)
@@ -679,19 +949,111 @@ function TopFactors({ value }: { value: string | null }) {
         <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border)' }}>
           <th>Feature</th>
           <th>Value</th>
+          <th>Avg</th>
+          <th>Δ</th>
           <th>Importance</th>
         </tr>
       </thead>
       <tbody>
-        {parsed.map((r) => (
-          <tr key={r.feature} style={{ borderBottom: '1px solid var(--border)' }}>
-            <td style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{r.feature}</td>
-            <td>{Number.isFinite(r.value) ? r.value.toFixed(2) : '-'}</td>
-            <td>{Number.isFinite(r.importance) ? r.importance.toFixed(4) : '-'}</td>
-          </tr>
-        ))}
+        {parsed.map((r) => {
+          const avg = averages && Object.prototype.hasOwnProperty.call(averages, r.feature) ? Number(averages[r.feature]) : null
+          const delta = avg != null && Number.isFinite(r.value) && Number.isFinite(avg) ? r.value - avg : null
+          const deltaText =
+            delta == null || !Number.isFinite(delta)
+              ? '-'
+              : `${delta >= 0 ? '+' : ''}${delta.toFixed(2)}`
+
+          return (
+            <tr key={r.feature} style={{ borderBottom: '1px solid var(--border)' }}>
+              <td style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{r.feature}</td>
+              <td>{Number.isFinite(r.value) ? r.value.toFixed(2) : '-'}</td>
+              <td>{avg != null && Number.isFinite(avg) ? avg.toFixed(2) : <span className="muted">-</span>}</td>
+              <td style={{ color: delta != null && delta > 0 ? 'var(--success)' : delta != null && delta < 0 ? 'var(--danger)' : 'var(--text-h)' }}>
+                {deltaText}
+              </td>
+              <td>{Number.isFinite(r.importance) ? r.importance.toFixed(4) : '-'}</td>
+            </tr>
+          )
+        })}
       </tbody>
     </table>
+  )
+}
+
+function Sparkline({ values, labels }: { values: number[]; labels?: string[] }) {
+  if (!values.length) return null
+  const w = 520
+  const h = 90
+  const pad = 8
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const range = max - min || 1
+  const xStep = values.length > 1 ? (w - pad * 2) / (values.length - 1) : 0
+
+  const pts = values.map((v, i) => {
+    const x = pad + i * xStep
+    const y = pad + (h - pad * 2) * (1 - (v - min) / range)
+    return { x, y }
+  })
+
+  const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ')
+  const last = values[values.length - 1]
+  const first = values[0]
+  const delta = last - first
+
+  return (
+    <div className="card" style={{ boxShadow: 'none' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'baseline' }}>
+        <div className="muted" style={{ fontSize: 12 }}>
+          start {first.toFixed(3)} → now {last.toFixed(3)} ({delta >= 0 ? '+' : ''}
+          {delta.toFixed(3)})
+        </div>
+        {labels?.length ? (
+          <div className="muted" style={{ fontSize: 12 }}>
+            {labels[0]} → {labels[labels.length - 1]}
+          </div>
+        ) : null}
+      </div>
+
+      <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ marginTop: 8, display: 'block' }}>
+        <path d={d} fill="none" stroke="var(--accent)" strokeWidth="2.5" />
+        <circle cx={pts[pts.length - 1].x} cy={pts[pts.length - 1].y} r="3.5" fill="var(--accent)" />
+      </svg>
+    </div>
+  )
+}
+
+function MiniSpark({ title, values, labels }: { title: string; values: number[]; labels?: string[] }) {
+  if (!values.length) return null
+  const last = values[values.length - 1]
+  const w = 520
+  const h = 70
+  const pad = 8
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const range = max - min || 1
+  const xStep = values.length > 1 ? (w - pad * 2) / (values.length - 1) : 0
+  const pts = values.map((v, i) => {
+    const x = pad + i * xStep
+    const y = pad + (h - pad * 2) * (1 - (v - min) / range)
+    return { x, y }
+  })
+  const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ')
+
+  return (
+    <div className="card" style={{ boxShadow: 'none' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'baseline' }}>
+        <div style={{ fontWeight: 800 }}>{title}</div>
+        <div className="muted" style={{ fontSize: 12 }}>
+          now {Number.isFinite(last) ? last.toFixed(2) : '-'}
+          {labels?.length ? ` • days ${labels[0]}→${labels[labels.length - 1]}` : ''}
+        </div>
+      </div>
+      <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ marginTop: 6, display: 'block' }}>
+        <path d={d} fill="none" stroke="var(--text-h)" strokeOpacity="0.8" strokeWidth="2" />
+        <circle cx={pts[pts.length - 1].x} cy={pts[pts.length - 1].y} r="3" fill="var(--text-h)" />
+      </svg>
+    </div>
   )
 }
 

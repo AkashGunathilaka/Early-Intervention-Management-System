@@ -19,6 +19,7 @@ import { AdminUsersPage } from './pages/admin/AdminUsersPage'
 import { AuthProvider } from './context/AuthContext'
 import { ChangePasswordPage } from './pages/ChangePasswordPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
+import { DatasetProvider } from './context/DatasetContext'
 
 function App() {
   useEffect(() => {
@@ -27,132 +28,134 @@ function App() {
 
   return (
     <AuthProvider>
-      <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
-        <Route
-          path="/dashboard"
-          element={
-            <RequireAuth>
-              <AppLayout>
-                <DashboardPage />
-              </AppLayout>
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/students"
-          element={
-            <RequireAuth>
-              <AppLayout>
-                <StudentsPage />
-              </AppLayout>
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/students/:id"
-          element={
-            <RequireAuth>
-              <AppLayout>
-                <StudentProfilePage />
-              </AppLayout>
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/students/:id/predictions"
-          element={
-            <RequireAuth>
-              <AppLayout>
-                <StudentPredictionsPage />
-              </AppLayout>
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/students/:id/snapshots"
-          element={
-            <RequireAuth>
-              <AppLayout>
-                <StudentSnapshotsPage />
-              </AppLayout>
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/change-password"
-          element={
-            <RequireAuth>
-              <AppLayout>
-                <ChangePasswordPage />
-              </AppLayout>
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/admin/models"
-          element={
-            <RequireAuth>
-              <RequireAdmin>
+      <DatasetProvider>
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route
+            path="/dashboard"
+            element={
+              <RequireAuth>
                 <AppLayout>
-                  <AdminModelsPage />
+                  <DashboardPage />
                 </AppLayout>
-              </RequireAdmin>
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/admin/ml"
-          element={
-            <RequireAuth>
-              <RequireAdmin>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/students"
+            element={
+              <RequireAuth>
                 <AppLayout>
-                  <AdminMLPage />
+                  <StudentsPage />
                 </AppLayout>
-              </RequireAdmin>
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/admin/data"
-          element={
-            <RequireAuth>
-              <RequireAdmin>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/students/:id"
+            element={
+              <RequireAuth>
                 <AppLayout>
-                  <AdminDataPage />
+                  <StudentProfilePage />
                 </AppLayout>
-              </RequireAdmin>
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/admin/users"
-          element={
-            <RequireAuth>
-              <RequireAdmin>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/students/:id/predictions"
+            element={
+              <RequireAuth>
                 <AppLayout>
-                  <AdminUsersPage />
+                  <StudentPredictionsPage />
                 </AppLayout>
-              </RequireAdmin>
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/admin/risk-thresholds"
-          element={
-            <RequireAuth>
-              <RequireAdmin>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/students/:id/snapshots"
+            element={
+              <RequireAuth>
                 <AppLayout>
-                  <AdminRiskThresholdsPage />
+                  <StudentSnapshotsPage />
                 </AppLayout>
-              </RequireAdmin>
-            </RequireAuth>
-          }
-        />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/change-password"
+            element={
+              <RequireAuth>
+                <AppLayout>
+                  <ChangePasswordPage />
+                </AppLayout>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin/models"
+            element={
+              <RequireAuth>
+                <RequireAdmin>
+                  <AppLayout>
+                    <AdminModelsPage />
+                  </AppLayout>
+                </RequireAdmin>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin/ml"
+            element={
+              <RequireAuth>
+                <RequireAdmin>
+                  <AppLayout>
+                    <AdminMLPage />
+                  </AppLayout>
+                </RequireAdmin>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin/data"
+            element={
+              <RequireAuth>
+                <RequireAdmin>
+                  <AppLayout>
+                    <AdminDataPage />
+                  </AppLayout>
+                </RequireAdmin>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <RequireAuth>
+                <RequireAdmin>
+                  <AppLayout>
+                    <AdminUsersPage />
+                  </AppLayout>
+                </RequireAdmin>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin/risk-thresholds"
+            element={
+              <RequireAuth>
+                <RequireAdmin>
+                  <AppLayout>
+                    <AdminRiskThresholdsPage />
+                  </AppLayout>
+                </RequireAdmin>
+              </RequireAuth>
+            }
+          />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </DatasetProvider>
     </AuthProvider>
   )
 }

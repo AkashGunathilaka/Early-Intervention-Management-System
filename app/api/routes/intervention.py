@@ -44,7 +44,7 @@ def get_intervention_suggestions(
     suggestions: list[str] = []
     priority = "low"
 
-    # Basic rule-based suggestions (good demo-quality)
+    # Simple rule-based suggestions (kept intentionally deterministic and transparent)
     if latest_prediction.risk_level == "High":
         priority = "high"
         suggestions.extend([

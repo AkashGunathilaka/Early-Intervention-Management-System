@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { Card } from '../components/ui/Card'
 import { Stat } from '../components/ui/Stat'
+import { useDataset } from '../context/DatasetContext'
 
 type DashboardSummary = {
   total_students: number
@@ -23,7 +24,16 @@ type RecentHighRiskRow = {
 
 type InterventionStatus = Record<string, number>
 
+type Dataset = {
+  dataset_id: number
+  dataset_name: string
+  source_type: string
+  status: string
+}
+
 export function DashboardPage() {
+  const [datasets, setDatasets] = useState<Dataset[]>([])
+  const { datasetId, setDatasetId } = useDataset()
   const [data, setData] = useState<DashboardSummary | null>(null)
   const [dist, setDist] = useState<RiskDistribution | null>(null)
   const [recent, setRecent] = useState<RecentHighRiskRow[] | null>(null)
@@ -35,13 +45,39 @@ export function DashboardPage() {
     let cancelled = false
     ;(async () => {
       try {
+        const dsRes = await api.get<Dataset[]>('/datasets/')
+        if (!cancelled) setDatasets(dsRes.data)
+
+        // If you already picked a dataset earlier, keep it.
+        // Only pick a default if we have nothing selected yet (or the selected one no longer exists).
+        if (!cancelled && dsRes.data.length) {
+          const exists = datasetId != null && dsRes.data.some((d) => d.dataset_id === datasetId)
+          if (!exists) setDatasetId(dsRes.data[0].dataset_id)
+        }
+      } catch (err: any) {
+        if (!cancelled) setError(err?.response?.data?.detail ?? 'Failed to load dashboard')
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    if (datasetId == null) return
+    let cancelled = false
+    ;(async () => {
+      try {
         setLoading(true)
         setError(null)
+        const params = { dataset_id: datasetId }
         const [summaryRes, distRes, recentRes, interventionRes] = await Promise.all([
-          api.get<DashboardSummary>('/dashboard/summary'),
-          api.get<RiskDistribution>('/dashboard/risk-distribution'),
-          api.get<RecentHighRiskRow[]>('/dashboard/recent-high-risk', { params: { limit: 10 } }),
-          api.get<InterventionStatus>('/dashboard/intervention-status'),
+          api.get<DashboardSummary>('/dashboard/summary', { params }),
+          api.get<RiskDistribution>('/dashboard/risk-distribution', { params }),
+          api.get<RecentHighRiskRow[]>('/dashboard/recent-high-risk', { params: { ...params, limit: 10 } }),
+          api.get<InterventionStatus>('/dashboard/intervention-status', { params }),
         ])
 
         if (!cancelled) {
@@ -56,16 +92,31 @@ export function DashboardPage() {
         if (!cancelled) setLoading(false)
       }
     })()
-
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [datasetId])
 
   return (
     <div className="page" style={{ maxWidth: 1000 }}>
       <div className="pageHeader">
-        <h1>Dashboard</h1>
+        <div>
+          <h1>Dashboard</h1>
+          {datasets.length ? (
+            <div style={{ marginTop: 10, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span className="muted" style={{ fontSize: 12 }}>
+                Dataset
+              </span>
+              <select value={datasetId ?? ''} onChange={(e) => setDatasetId(Number(e.target.value))} style={{ width: 420 }}>
+                {datasets.map((d) => (
+                  <option key={d.dataset_id} value={d.dataset_id}>
+                    {d.dataset_id} — {d.dataset_name} ({d.source_type})
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+        </div>
       </div>
       {loading ? <p>Loading…</p> : null}
       {error ? <p className="error">{error}</p> : null}
