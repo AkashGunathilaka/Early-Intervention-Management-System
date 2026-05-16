@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { Card } from '../components/ui/Card'
 import { Stat } from '../components/ui/Stat'
+import { useDataset } from '../context/DatasetContext'
+
+// Main page , dashboard for all staff
 
 type DashboardSummary = {
   total_students: number
@@ -23,7 +26,16 @@ type RecentHighRiskRow = {
 
 type InterventionStatus = Record<string, number>
 
+type Dataset = {
+  dataset_id: number
+  dataset_name: string
+  source_type: string
+  status: string
+}
+
 export function DashboardPage() {
+  const [datasets, setDatasets] = useState<Dataset[]>([])
+  const { datasetId, setDatasetId } = useDataset()
   const [data, setData] = useState<DashboardSummary | null>(null)
   const [dist, setDist] = useState<RiskDistribution | null>(null)
   const [recent, setRecent] = useState<RecentHighRiskRow[] | null>(null)
@@ -31,17 +43,43 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Load the available datasets when the dashboard opens and pick the default
   useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const dsRes = await api.get<Dataset[]>('/datasets/')
+        if (!cancelled) setDatasets(dsRes.data)
+
+        if (!cancelled && dsRes.data.length) {
+          const exists = datasetId != null && dsRes.data.some((d) => d.dataset_id === datasetId)
+          if (!exists) setDatasetId(dsRes.data[0].dataset_id)
+        }
+      } catch (err: any) {
+        if (!cancelled) setError(err?.response?.data?.detail ?? 'Failed to load dashboard')
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Load dashboard data whenever the selected dataset changes
+  useEffect(() => {
+    if (datasetId == null) return
     let cancelled = false
     ;(async () => {
       try {
         setLoading(true)
         setError(null)
+        const params = { dataset_id: datasetId }
         const [summaryRes, distRes, recentRes, interventionRes] = await Promise.all([
-          api.get<DashboardSummary>('/dashboard/summary'),
-          api.get<RiskDistribution>('/dashboard/risk-distribution'),
-          api.get<RecentHighRiskRow[]>('/dashboard/recent-high-risk', { params: { limit: 10 } }),
-          api.get<InterventionStatus>('/dashboard/intervention-status'),
+          api.get<DashboardSummary>('/dashboard/summary', { params }),
+          api.get<RiskDistribution>('/dashboard/risk-distribution', { params }),
+          api.get<RecentHighRiskRow[]>('/dashboard/recent-high-risk', { params: { ...params, limit: 10 } }),
+          api.get<InterventionStatus>('/dashboard/intervention-status', { params }),
         ])
 
         if (!cancelled) {
@@ -56,17 +94,34 @@ export function DashboardPage() {
         if (!cancelled) setLoading(false)
       }
     })()
-
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [datasetId])
 
   return (
-    <div style={{ maxWidth: 960, margin: '32px auto', padding: 16 }}>
-      <h1 style={{ marginTop: 0 }}>Dashboard</h1>
+    <div className="page" style={{ maxWidth: 1000 }}>
+      <div className="pageHeader">
+        <div>
+          <h1>Dashboard</h1>
+          {datasets.length ? (
+            <div style={{ marginTop: 10, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span className="muted" style={{ fontSize: 12 }}>
+                Dataset
+              </span>
+              <select value={datasetId ?? ''} onChange={(e) => setDatasetId(Number(e.target.value))} style={{ width: 420 }}>
+                {datasets.map((d) => (
+                  <option key={d.dataset_id} value={d.dataset_id}>
+                    {d.dataset_id} — {d.dataset_name} ({d.source_type})
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+        </div>
+      </div>
       {loading ? <p>Loading…</p> : null}
-      {error ? <p style={{ color: 'crimson' }}>{error}</p> : null}
+      {error ? <p className="error">{error}</p> : null}
 
       {data ? (
         <div style={{ display: 'grid', gap: 16 }}>
@@ -84,7 +139,7 @@ export function DashboardPage() {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <Card title="Risk distribution">
-              {dist ? <RiskBars dist={dist} /> : <p style={{ margin: 0, color: '#6b7280' }}>No data</p>}
+              {dist ? <RiskBars dist={dist} /> : <p className="muted">No data</p>}
             </Card>
 
             <Card title="Intervention status">
@@ -96,17 +151,17 @@ export function DashboardPage() {
                       style={{
                         display: 'flex',
                         justifyContent: 'space-between',
-                        borderBottom: '1px solid #f3f4f6',
+                        borderBottom: '1px solid var(--border)',
                         padding: '6px 0',
                       }}
                     >
-                      <div style={{ color: '#374151' }}>{k}</div>
+                      <div style={{ color: 'var(--text-h)' }}>{k}</div>
                       <div style={{ fontWeight: 700 }}>{v}</div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p style={{ margin: 0, color: '#6b7280' }}>No data</p>
+                <p className="muted">No data</p>
               )}
             </Card>
           </div>
@@ -115,7 +170,7 @@ export function DashboardPage() {
             {recent && recent.length ? (
               <table width="100%" cellPadding={8} style={{ borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={{ textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>
+                  <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border)' }}>
                     <th>Student</th>
                     <th>Risk score</th>
                     <th>Confidence</th>
@@ -124,7 +179,7 @@ export function DashboardPage() {
                 </thead>
                 <tbody>
                   {recent.map((r) => (
-                    <tr key={r.prediction_id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                    <tr key={r.prediction_id} style={{ borderBottom: '1px solid var(--border)' }}>
                       <td>{r.student_id}</td>
                       <td>{r.risk_score.toFixed(3)}</td>
                       <td>{r.confidence_score.toFixed(3)}</td>
@@ -134,7 +189,7 @@ export function DashboardPage() {
                 </tbody>
               </table>
             ) : (
-              <p style={{ margin: 0, color: '#6b7280' }}>No high-risk predictions yet.</p>
+              <p className="muted">No high-risk predictions yet.</p>
             )}
           </Card>
         </div>
@@ -145,6 +200,7 @@ export function DashboardPage() {
 
 function RiskBars({ dist }: { dist: RiskDistribution }) {
   const total = (dist.High ?? 0) + (dist.Medium ?? 0) + (dist.Low ?? 0)
+  // Percentages are share of labeled predictions, not raw student counts.
   const pct = (n: number) => (total > 0 ? Math.round((n / total) * 100) : 0)
 
   return (
@@ -152,7 +208,7 @@ function RiskBars({ dist }: { dist: RiskDistribution }) {
       <Bar label="High" value={dist.High ?? 0} percent={pct(dist.High ?? 0)} color="crimson" />
       <Bar label="Medium" value={dist.Medium ?? 0} percent={pct(dist.Medium ?? 0)} color="#b26a00" />
       <Bar label="Low" value={dist.Low ?? 0} percent={pct(dist.Low ?? 0)} color="green" />
-      <div style={{ fontSize: 12, color: '#6b7280' }}>Total: {total}</div>
+      <div style={{ fontSize: 12, color: 'var(--text)' }}>Total: {total}</div>
     </div>
   )
 }
@@ -170,13 +226,13 @@ function Bar({
 }) {
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#374151' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-h)' }}>
         <div>
           <strong style={{ color }}>{label}</strong> — {value}
         </div>
         <div>{percent}%</div>
       </div>
-      <div style={{ height: 10, borderRadius: 999, background: '#f3f4f6', overflow: 'hidden', marginTop: 6 }}>
+      <div style={{ height: 10, borderRadius: 999, background: 'rgba(0,0,0,0.18)', overflow: 'hidden', marginTop: 6 }}>
         <div style={{ width: `${percent}%`, height: '100%', background: color }} />
       </div>
     </div>

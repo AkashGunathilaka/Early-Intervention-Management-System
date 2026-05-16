@@ -1,3 +1,7 @@
+"""
+User admin routes
+"""
+
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -12,6 +16,7 @@ from app.schemas.user import UserCreate, UserResponse
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
+# Create a new user account
 @router.post("/", response_model=UserResponse)
 def create_user(
     user: UserCreate,
@@ -37,6 +42,7 @@ def create_user(
     return new_user
 
 
+# Return all user accounts for the admin page
 @router.get("/", response_model=List[UserResponse])
 def get_users(
     db: Session = Depends(get_db),

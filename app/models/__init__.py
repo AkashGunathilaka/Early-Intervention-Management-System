@@ -1,3 +1,10 @@
+"""
+Imports all database models in one place
+
+
+This makes sure SQLAlchemy knows about all the tables in the database
+"""
+
 from app.models.risk_threshold import RiskThreshold
 from app.models.user import User
 from app.models.dataset import Dataset

@@ -1,3 +1,9 @@
+"""
+Model training helpers
+
+This file trains XGBoost models from either a prepared CSV file or the raw OULAD-style tables.
+"""
+
 from pathlib import Path
 import pickle
 import json
@@ -16,18 +22,22 @@ MODEL_DIR = Path("model")
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
 def _write_metrics_json(artifact_dir: Path, payload: dict) -> str:
+    #save the training metrics beside the model files 
     metrics_path = artifact_dir / "metrics.json"
     with open(metrics_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, sort_keys=True)
     return str(metrics_path)
 
 def validate_required_columns(df: pd.DataFrame, required_columns: list[str], dataset_name: str) -> None:
+    #Check that a dataset has all the required columns for training
     missing = [col for col in required_columns if col not in df.columns]
     if missing:
         raise ValueError(f"{dataset_name} is missing required columns: {missing}")
 
 
 def train_model_from_csv(csv_path: str, version: str, target_column: str = "at_risk_label") -> dict:
+   #Train a model from a single csv file 
+   #this path used when the features have already been prepared before the upload 
     artifact_dir = MODEL_DIR / "artifacts" / version
     artifact_dir.mkdir(parents=True, exist_ok=True)
 
@@ -51,19 +61,23 @@ def train_model_from_csv(csv_path: str, version: str, target_column: str = "at_r
     y = df[target_column]
     X = df.drop(columns=[target_column])
 
-    # Match notebook preprocessing behavior
+    # Student id is dropped
     if "id_student" in X.columns:
         X = X.drop(columns=["id_student"])
 
+    # Convert any categorical columns into numeric columns for XGBoost
     X = pd.get_dummies(X, drop_first=True)
+    # Clean column names so they are safe to save and reuse later
     X.columns = X.columns.str.replace(r"[\[\]<]", "", regex=True)
 
     feature_columns = list(X.columns)
 
+    # we used a fixed random state so repeated training runs are easier to compare
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
+        X, y, test_size=0.2, random_state=42,         stratify=y
     )
 
+    # Main XGBoost model used for risk prediction
     model = XGBClassifier(
         n_estimators=200,
         max_depth=5,
@@ -85,10 +99,10 @@ def train_model_from_csv(csv_path: str, version: str, target_column: str = "at_r
         "f1_score": float(f1_score(y_test, y_pred, zero_division=0)),
         "roc_auc": float(roc_auc_score(y_test, y_prob)),
     }
-
+    # save the model
     with open(model_path, "wb") as f:
         pickle.dump(model, f)
-
+    # save the feature columns
     with open(feature_columns_path, "wb") as f:
         pickle.dump(feature_columns, f)
 
@@ -122,6 +136,10 @@ def train_model_from_oulad_tables(
     early_days: int = 30,
     drop_code_module: bool = True,
 ) -> dict:
+    """
+    Train a model from the raw OULAD-style CSV tables 
+    this builds the training features first then trains the model
+    """
     artifact_dir = MODEL_DIR / "artifacts" / version
     artifact_dir.mkdir(parents=True, exist_ok=True)
 
@@ -133,7 +151,7 @@ def train_model_from_oulad_tables(
     student_assessment = pd.read_csv(student_assessment_path)
     assessments = pd.read_csv(assessments_path)
 
-    # Validate inputs BEFORE preprocessing
+    # Check that the required columns are present in the input files
     validate_required_columns(
         student_info,
         ["id_student", "code_module", "code_presentation", "final_result", "imd_band"],
@@ -167,8 +185,10 @@ def train_model_from_oulad_tables(
         drop_code_module=drop_code_module,
     )
 
+    # splits the target from the features and encode the categorical values
     X, y, feature_columns = encode_for_training(df, target_column="at_risk")
 
+    # keep the same split setup as the csv training path
     X_train, X_test, y_train, y_test = train_test_split(
         X,
         y,
@@ -177,6 +197,7 @@ def train_model_from_oulad_tables(
         stratify=y,
     )
 
+    # train the same XGBoost model, just using the features built from the raw tables
     model = XGBClassifier(
         n_estimators=200,
         max_depth=5,
@@ -199,6 +220,7 @@ def train_model_from_oulad_tables(
         "roc_auc": float(roc_auc_score(y_test, y_prob)),
     }
 
+    # save the model
     with open(model_path, "wb") as f:
         pickle.dump(model, f)
 

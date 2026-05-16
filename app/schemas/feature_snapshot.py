@@ -1,4 +1,8 @@
-from pydantic import BaseModel
+"""
+Feature snapshot schemas
+
+these defien the request and response formats for feature snapshot data used by the prediction model 
+"""
 
 from pydantic import BaseModel
 

@@ -1,3 +1,9 @@
+"""
+Risk threshold model
+
+this stores the score cutoffs to turn a prediction score into low, medium or high risk
+"""
+
 from sqlalchemy import Column, Integer, Float, DateTime
 from sqlalchemy.sql import func
 

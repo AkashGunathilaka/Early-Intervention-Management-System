@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../lib/api'
+import { Card } from '../../components/ui/Card'
+import { Stat } from '../../components/ui/Stat'
+import { fmt } from '../../lib/format'
+
+// Admin page for managing trained models
+// Shows the active model, its metrics, and all models in the database
 
 type ModelRecord = {
   model_id: number
@@ -22,49 +28,95 @@ type MetricsFile = Record<string, any>
 
 export function AdminModelsPage() {
   const [active, setActive] = useState<ModelRecord | null>(null)
+  const [models, setModels] = useState<ModelRecord[]>([])
   const [metrics, setMetrics] = useState<MetricsFile | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [activatingId, setActivatingId] = useState<number | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [deleteArtifacts, setDeleteArtifacts] = useState(true)
 
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
+  // Fetches the active model records and the active models metrics
+  async function loadAll(cancelledRef?: { cancelled: boolean }) {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const [activeRes, listRes] = await Promise.all([
+        api.get<ModelRecord>('/admin/models/active'),
+        api.get<ModelRecord[]>('/admin/models/'),
+      ])
+
+      if (cancelledRef?.cancelled) return
+      setActive(activeRes.data)
+      setModels(listRes.data)
+
       try {
-        setLoading(true)
-        setError(null)
-
-        const activeRes = await api.get<ModelRecord>('/admin/models/active')
-        if (cancelled) return
-        setActive(activeRes.data)
-
-        try {
-          const metricsRes = await api.get<MetricsFile>(`/admin/models/${activeRes.data.model_id}/metrics-file`)
-          if (!cancelled) setMetrics(metricsRes.data)
-        } catch {
-          if (!cancelled) setMetrics(null)
-        }
-      } catch (err: any) {
-        if (!cancelled) setError(err?.response?.data?.detail ?? 'Failed to load models (admin only)')
-      } finally {
-        if (!cancelled) setLoading(false)
+        const metricsRes = await api.get<MetricsFile>(`/admin/models/${activeRes.data.model_id}/metrics-file`)
+        if (!cancelledRef?.cancelled) setMetrics(metricsRes.data)
+      } catch {
+        if (!cancelledRef?.cancelled) setMetrics(null)
       }
-    })()
-    return () => {
-      cancelled = true
+    } catch (err: any) {
+      if (!cancelledRef?.cancelled) setError(err?.response?.data?.detail ?? 'Failed to load models (admin only)')
+    } finally {
+      if (!cancelledRef?.cancelled) setLoading(false)
     }
+  }
+
+  // Activate a model and relaod the file 
+  async function activate(modelId: number) {
+    setActivatingId(modelId)
+    setError(null)
+    try {
+      await api.put(`/admin/models/activate/${modelId}`)
+      await loadAll()
+    } catch (err: any) {
+      setError(err?.response?.data?.detail ?? 'Failed to activate model')
+    } finally {
+      setActivatingId(null)
+    }
+  }
+
+  // delete a model record (cannot delete master or active model)
+  async function deleteModel(modelId: number) {
+    const ok = window.confirm(`Delete model_id=${modelId}? This cannot be undone.`)
+    if (!ok) return
+
+    setDeletingId(modelId)
+    setError(null)
+    try {
+      await api.delete(`/admin/models/${modelId}`, { params: { delete_artifacts: deleteArtifacts } })
+      await loadAll()
+    } catch (err: any) {
+      setError(err?.response?.data?.detail ?? 'Failed to delete model')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+// load the model when the page opens 
+  useEffect(() => {
+    const ref = { cancelled: false }
+    loadAll(ref)
+    return () => {
+      ref.cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return (
-    <div style={{ maxWidth: 1100, margin: '32px auto', padding: 16 }}>
-      <h1 style={{ marginTop: 0 }}>Admin — Models</h1>
+    <div className="page">
+      <div className="pageHeader">
+        <h1>Admin — Models</h1>
+      </div>
       {loading ? <p>Loading…</p> : null}
-      {error ? <p style={{ color: 'crimson' }}>{error}</p> : null}
+      {error ? <p className="error">{error}</p> : null}
 
       {active ? (
         <div style={{ display: 'grid', gap: 16 }}>
-          <section style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 14 }}>
-            <h2 style={{ margin: 0, fontSize: 16 }}>Active model</h2>
-            <div style={{ marginTop: 12, display: 'grid', gap: 6 }}>
+          <Card title="Active model">
+            <div style={{ display: 'grid', gap: 6 }}>
               <Row k="model_id" v={active.model_id} />
               <Row k="name" v={active.model_name} />
               <Row k="version" v={active.version} />
@@ -74,18 +126,67 @@ export function AdminModelsPage() {
               <Row k="model_path" v={active.model_path ?? '-'} />
               <Row k="feature_columns_path" v={active.feature_columns_path ?? '-'} />
             </div>
-          </section>
+          </Card>
 
-          <section style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 14 }}>
-            <h2 style={{ margin: 0, fontSize: 16 }}>Metrics file</h2>
-            <div style={{ marginTop: 12 }}>
-              {metrics ? (
-                <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{JSON.stringify(metrics, null, 2)}</pre>
-              ) : (
-                <p style={{ margin: 0, color: '#6b7280' }}>No metrics.json found for this model.</p>
-              )}
+          <Card title="Evaluation metrics">
+            {metrics ? <MetricsView metrics={metrics} /> : <p className="muted">No metrics.json found for this model.</p>}
+          </Card>
+
+          <Card title="All models (switch active)">
+            {models.length ? (
+              <table width="100%" cellPadding={8} style={{ borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border)' }}>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Version</th>
+                    <th>Locked</th>
+                    <th>Active</th>
+                    <th>Action</th>
+                    <th>Delete</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {models.map((m) => (
+                    <tr key={m.model_id} style={{ borderBottom: '1px solid var(--border)' }}>
+                      <td>{m.model_id}</td>
+                      <td>{m.model_name}</td>
+                      <td>{m.version}</td>
+                      <td>{m.is_locked ? 'Yes' : 'No'}</td>
+                      <td>{m.is_active ? 'Yes' : 'No'}</td>
+                      <td>
+                        {m.is_active ? (
+                          <span style={{ color: 'var(--text)' }}>Current</span>
+                        ) : (
+                          <button onClick={() => activate(m.model_id)} disabled={activatingId === m.model_id}>
+                            {activatingId === m.model_id ? 'Activating…' : 'Activate'}
+                          </button>
+                        )}
+                      </td>
+                      <td>
+                        {m.is_locked || m.is_active ? (
+                          <span className="muted">—</span>
+                        ) : (
+                          <button onClick={() => deleteModel(m.model_id)} disabled={deletingId === m.model_id}>
+                            {deletingId === m.model_id ? 'Deleting…' : 'Delete'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p style={{ margin: 0, color: 'var(--text)' }}>No models found.</p>
+            )}
+
+            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text)', fontSize: 12 }}>
+                <input type="checkbox" checked={deleteArtifacts} onChange={(e) => setDeleteArtifacts(e.target.checked)} />
+                Delete artifacts folder too (only under `model/artifacts/`)
+              </label>
             </div>
-          </section>
+          </Card>
         </div>
       ) : null}
     </div>
@@ -95,8 +196,53 @@ export function AdminModelsPage() {
 function Row({ k, v }: { k: string; v: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-      <div style={{ color: '#6b7280', fontSize: 12 }}>{k}</div>
+      <div style={{ color: 'var(--text)', fontSize: 12 }}>{k}</div>
       <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{v}</div>
+    </div>
+  )
+}
+
+// Shows the saved training metrics for the model
+function MetricsView({ metrics }: { metrics: MetricsFile }) {
+  const split = metrics?.split ?? null
+
+  return (
+    <div style={{ display: 'grid', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        <Stat label="Accuracy" value={fmt(metrics.accuracy, 3)} />
+        <Stat label="Precision" value={fmt(metrics.precision, 3)} />
+        <Stat label="Recall" value={fmt(metrics.recall, 3)} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        <Stat label="F1" value={fmt(metrics.f1_score, 3)} />
+        <Stat label="ROC-AUC" value={fmt(metrics.roc_auc, 3)} />
+        <Stat label="PR-AUC" value={fmt(metrics.pr_auc, 3)} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div className="card" style={{ padding: 12 }}>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>Split</div>
+          {split ? (
+            <div style={{ display: 'grid', gap: 6 }}>
+              <Row k="type" v={String(split.type ?? '-')} />
+              <Row k="test_size" v={String(split.test_size ?? '-')} />
+              <Row k="random_state" v={String(split.random_state ?? '-')} />
+              <Row k="group_col" v={String(split.group_col ?? '-')} />
+            </div>
+          ) : (
+            <div className="muted">No split metadata</div>
+          )}
+        </div>
+
+        <div className="card" style={{ padding: 12 }}>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>Raw JSON</div>
+          <details>
+            <summary style={{ cursor: 'pointer' }}>Show</summary>
+            <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{JSON.stringify(metrics, null, 2)}</pre>
+          </details>
+        </div>
+      </div>
     </div>
   )
 }

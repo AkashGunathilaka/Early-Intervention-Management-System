@@ -1,3 +1,5 @@
+// Protects pages that need a loggen in user 
+
 import { Navigate, useLocation } from 'react-router-dom'
 import { getToken } from '../lib/auth'
 

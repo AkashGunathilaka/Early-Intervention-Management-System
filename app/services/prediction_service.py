@@ -1,3 +1,4 @@
+# prediction service to keep the main prediction logic in one place
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
@@ -8,7 +9,8 @@ from app.ml.predictor import generate_prediction
 from app.models.risk_threshold import RiskThreshold
 
 
-def predict_for_student(student_id: int, db: Session) -> Prediction:
+def predict_for_student(student_id: int, db: Session, *, explain: bool = True) -> Prediction:
+    # generate and save a prediction for one student
     feature_snapshot = (
         db.query(FeatureSnapshot)
         .filter(FeatureSnapshot.student_id == student_id)
@@ -22,6 +24,7 @@ def predict_for_student(student_id: int, db: Session) -> Prediction:
             detail="No feature snapshot found for this student",
         )
 
+# get the active model
     active_model = (
         db.query(ModelRecord)
         .filter(ModelRecord.is_active == True)
@@ -43,6 +46,7 @@ def predict_for_student(student_id: int, db: Session) -> Prediction:
         feature_columns_path=active_model.feature_columns_path,
     )
 
+    # use configured thresholds if they exist, otherwise use the default values
     threshold = db.query(RiskThreshold).first()
     high_threshold = threshold.high_threshold if threshold else 0.7
     medium_threshold = threshold.medium_threshold if threshold else 0.4
@@ -55,6 +59,7 @@ def predict_for_student(student_id: int, db: Session) -> Prediction:
     else:
         risk_level = "Low"
 
+    # saves the prediction 
     new_prediction = Prediction(
         student_id=feature_snapshot.student_id,
         feature_id=feature_snapshot.feature_id,
@@ -63,7 +68,7 @@ def predict_for_student(student_id: int, db: Session) -> Prediction:
         predicted_label=prediction_result["predicted_label"],
         risk_level=risk_level,
         confidence_score=prediction_result["confidence_score"],
-        top_factors=prediction_result["top_factors"],
+        top_factors=prediction_result["top_factors"] if explain else None,
     )
 
     db.add(new_prediction)
