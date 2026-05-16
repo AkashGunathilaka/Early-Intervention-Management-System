@@ -422,6 +422,9 @@ export function StudentProfilePage() {
             <Card title="Student">
               <KeyValue k="student_id" v={data.student.student_id} />
               <KeyValue k="dataset_id" v={data.student.dataset_id} />
+              <KeyValue k="gender" v={data.student.gender ?? '-'} />
+              <KeyValue k="studied_credits" v={data.student.studied_credits ?? '-'} />
+              <KeyValue k="num_of_prev_attempts" v={data.student.num_of_prev_attempts ?? '-'} />
               <KeyValue k="region" v={data.student.region ?? '-'} />
               <KeyValue k="code_module" v={data.student.code_module ?? '-'} />
               <KeyValue k="code_presentation" v={data.student.code_presentation ?? '-'} />

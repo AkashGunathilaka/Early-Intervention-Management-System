@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.models.feature_snapshot import FeatureSnapshot
 from app.models.model_record import ModelRecord
+from app.models.student import Student
 from app.models.prediction import Prediction
 from app.ml.predictor import generate_prediction
 from app.models.risk_threshold import RiskThreshold
@@ -24,6 +25,10 @@ def predict_for_student(student_id: int, db: Session, *, explain: bool = True) -
             detail="No feature snapshot found for this student",
         )
 
+    student = db.query(Student).filter(Student.student_id == student_id).first()
+    if student is None:
+        raise HTTPException(status_code=404, detail="Student not found")
+
 # get the active model
     active_model = (
         db.query(ModelRecord)
@@ -42,6 +47,7 @@ def predict_for_student(student_id: int, db: Session, *, explain: bool = True) -
 
     prediction_result = generate_prediction(
         feature_snapshot,
+        student,
         model_path=active_model.model_path,
         feature_columns_path=active_model.feature_columns_path,
     )

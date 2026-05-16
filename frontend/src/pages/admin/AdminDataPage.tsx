@@ -3,7 +3,7 @@ import { api } from '../../lib/api'
 import { Card } from '../../components/ui/Card'
 
 // Admin page for importing student data from a CSV
-// CSV should be under the uploads/ directory and contain the relevant columns
+// CSV should be under uploads/ or seed/ and contain the relevant columns
 
 type ImportResult = {
   dataset_id: number
@@ -31,7 +31,7 @@ export function AdminDataPage() {
     if (!Number.isFinite(dsId)) return setError('Please enter a valid dataset_id')
 
     if (!csvPath.trim()) {
-      return setError('Please enter a CSV path (must be under uploads/).')
+      return setError('Please enter a CSV path (under uploads/ or seed/).')
     }
 
     setRunning(true)
@@ -75,8 +75,8 @@ export function AdminDataPage() {
             </label>
 
             <label style={{ display: 'grid', gap: 6 }}>
-              CSV path (under uploads/)
-              <input value={csvPath} onChange={(e) => setCsvPath(e.target.value)} placeholder="uploads/my_students.csv" />
+              CSV path
+              <input value={csvPath} onChange={(e) => setCsvPath(e.target.value)} placeholder="seed/demo_students_200.csv" />
             </label>
 
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
@@ -94,7 +94,7 @@ export function AdminDataPage() {
             </button>
 
             <div className="muted" style={{ fontSize: 12 }}>
-              Note: the CSV must be accessible to the backend under `uploads/` (for safety).
+              Committed demo: <code>seed/demo_students_200.csv</code> (200 OULAD students from the notebook).
             </div>
 
             <details>

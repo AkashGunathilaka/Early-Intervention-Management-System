@@ -6,8 +6,10 @@ import pickle
 from pathlib import Path
 from functools import lru_cache
 
-import pandas as pd
 import numpy as np
+import pandas as pd
+
+from app.ml.preprocessing import build_prediction_dataframe
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -66,31 +68,12 @@ def get_risk_level(risk_score: float) -> str:
     return "Low"
 
 
-def build_feature_dataframe(feature_snapshot, feature_columns) -> pd.DataFrame:
-    # Convert a feature snapshot into a dataframe format expected by the model
-    # any missing columns are filled with 0
-    data = {
-        "total_clicks": feature_snapshot.total_clicks,
-        "avg_clicks": feature_snapshot.avg_clicks,
-        "vle_records": feature_snapshot.vle_records,
-        "avg_score": feature_snapshot.avg_score,
-        "total_score": feature_snapshot.total_score,
-        "assessment_count": feature_snapshot.assessment_count,
-        "avg_weight": feature_snapshot.avg_weight,
-    }
-
-    df = pd.DataFrame([data])
-
-    # add any columns the model expects but this snapshot does not contain
-    for col in feature_columns:
-        if col not in df.columns:
-            df[col] = 0
-
-
-    return df[feature_columns]
-
-
-def generate_prediction(feature_snapshot, model_path: str | None = None, feature_columns_path: str | None = None):
+def generate_prediction(
+    feature_snapshot,
+    student,
+    model_path: str | None = None,
+    feature_columns_path: str | None = None,
+):
     # run a prediction for one feature snapshot
     model = load_model_from_path(model_path) if model_path else load_model()
     feature_columns = (
@@ -99,7 +82,7 @@ def generate_prediction(feature_snapshot, model_path: str | None = None, feature
         else load_feature_columns()
     )
 
-    df = build_feature_dataframe(feature_snapshot, feature_columns)
+    df = build_prediction_dataframe(student, feature_snapshot, feature_columns)
 
     # for this binary model, class 1 is treated as the at-risk class
     probs = model.predict_proba(df)[0]

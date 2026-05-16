@@ -170,69 +170,45 @@ Log in with the admin email and password you created in step 6.
 
 ---
 
-## 8. Load sample students (recommended for a demo)
+## 8. Load demo students (Admin → Data)
 
-Predictions need (1) students with feature snapshots and (2) an **active** model row in the database. The easiest path on a fresh install:
+The repo includes **`seed/demo_students_200.csv`** — 200 students sampled from OULAD the same way as in `Notebook/data_cleaning_and_ml_core.ipynb` (100 at-risk, 100 not-at-risk). No OULAD download is needed on a fresh clone.
 
-### 8a. Generate CSV files
-
-From the repo root (venv active):
-
-```bash
-python Scripts/generate_demo_csvs.py
-```
-
-This writes:
-
-- `uploads/students_import_100.csv` — students + snapshots for import  
-- `uploads/retrain_dataset_100.csv` — optional data for ML retrain flows  
-
-(CSV files under `uploads/` are gitignored; you must run this script on each new machine.)
-
-### 8b. Create a dataset in the UI
+### 8a. Create a dataset
 
 1. Log in as **admin**.
-2. Go to **Students**.
-3. In the admin section, create a new dataset . Note the **dataset_id** shown (often `1` on a fresh DB).
+2. Go to **Students** and create a dataset (e.g. `demo-cohort`). Note the **dataset_id** (often `1`).
 
-### 8c. Import the CSV
+### 8b. Register the master model
 
-1. Go to **Admin → Data**.
-2. Set **dataset_id** to the id from step 8b.
-3. Set **CSV path** to: `uploads/students_import_100.csv`  
-   (paths must stay inside the `uploads/` folder.)
-4. Leave **Generate predictions** off for now (there is no active model yet).
-5. Run the import.
-
-### 8d. Register the bundled model as active
-
-The app loads pickle files from `model/` based on the **active** `ModelRecord` in Postgres. After you have at least one dataset row, run:
+From the repo root (venv active):
 
 ```bash
 python -m Scripts.cleanup_test_artifacts
 ```
 
-This script:
+This creates/activates the bundled master model so predictions can run. Check **Admin → Models** — one model should be active.
 
-- Ensures a **master** model record exists (pointing at `model/final_master_model.pkl` and `model/final_master_feature_columns.pkl`)
-- Marks it as the only **active** model
-- Cleans up extra model rows and orphaned upload metadata from testing
+### 8c. Import via Admin → Data
 
-You can confirm under **Admin → Models** that one model is active.
+1. Open **Admin → Data**.
+2. **dataset_id** — value from step 8a.
+3. **CSV path** — `seed/demo_students_200.csv`
+4. Enable **Generate predictions**.
+5. Click **Run import**.
 
-### 8e. Generate predictions
+You should see 200 students on the dashboard with risk levels and interventions.
 
-- **Admin → Data**: run import again with **Generate predictions** enabled, **or**
-- Open a student profile and use predict actions, **or**
-- **Students** page (admin): bulk regenerate predictions for the selected dataset.
+### Regenerating the CSV (optional, requires OULAD)
 
-The dashboard and student pages should then show risk levels and intervention suggestions.
+In the notebook, after building `demo_df`, export with the importer columns (`code_module`, `total_score`, `avg_weight`, `days_from_start`, `at_risk_label`, etc.) and save as `seed/demo_students_200.csv`, then commit.
 
 ---
 
-## 9. Alternative: add one student manually
+## 9. Alternative: synthetic CSV or manual student
 
-Without CSV import, an admin can use **Students → Create student (demo)** to add a single student with a feature snapshot. You still need an active model (step 8d) before predictions will work.
+- **Synthetic:** `python Scripts/generate_demo_csvs.py` then import from `uploads/students_import_100.csv`.
+- **Manual:** **Students → Create student (demo)** for a single row (active model required).
 
 ---
 
@@ -286,7 +262,8 @@ For day-to-day use of the web app, the **bundled** files in `model/` are enough.
 app/              FastAPI app (routes, models, ML, services)
 frontend/         React + Vite UI
 model/            Trained model pickles and metrics (used at runtime)
-uploads/          CSV uploads and imports (create via script)
+seed/             Committed demo_students_200.csv (import via Admin → Data)
+uploads/          Ad-hoc CSV uploads (gitignored)
 Notebook/         OULAD training / cleaning notebook
 Scripts/          Demo CSVs, cleanup, sequence reset
 tests/            API smoke tests

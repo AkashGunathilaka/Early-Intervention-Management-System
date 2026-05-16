@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import require_admin
-from app.api.upload_paths import resolve_under_uploads
+from app.api.upload_paths import resolve_import_csv
 from app.db.database import get_db
 from app.db.sequences import reset_sequence
 from app.models.feature_snapshot import FeatureSnapshot
@@ -30,7 +30,7 @@ def import_students_from_csv(
     current_user: User = Depends(require_admin),
 ):
     #import route for loading prepared OULAD style data into the database. It creates/updates students, adds featuresnashots and can generate the predictions
-    csv_file = resolve_under_uploads(csv_path)
+    csv_file = resolve_import_csv(csv_path)
     if not csv_file.exists():
         raise HTTPException(status_code=404, detail=f"Missing file: {csv_file}")
 #Read the CSV into a dataframe so each row can be imported

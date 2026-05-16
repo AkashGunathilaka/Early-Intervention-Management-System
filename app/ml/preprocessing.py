@@ -124,3 +124,70 @@ def encode_for_training(df: pd.DataFrame, target_column: str = "at_risk") -> tup
 
     feature_columns = x.columns.tolist()
     return x, y, feature_columns
+
+
+def build_prediction_dataframe(student, feature_snapshot, feature_columns: list[str]) -> pd.DataFrame:
+    """
+    Build one model input row from a student profile + feature snapshot.
+
+    Uses the same one-hot encoding as training (drop_first=True). Columns missing
+    after encoding are filled with 0 so the row matches the saved feature list.
+    """
+    row = {
+        "num_of_prev_attempts": int(student.num_of_prev_attempts or 0),
+        "studied_credits": int(student.studied_credits or 0),
+        "total_clicks": float(feature_snapshot.total_clicks or 0),
+        "avg_clicks": float(feature_snapshot.avg_clicks or 0),
+        "vle_records": int(feature_snapshot.vle_records or 0),
+        "avg_score": float(feature_snapshot.avg_score or 0),
+        "total_score": float(feature_snapshot.total_score or 0),
+        "assessment_count": int(feature_snapshot.assessment_count or 0),
+        "avg_weight": float(feature_snapshot.avg_weight or 0),
+        "gender": str(student.gender or ""),
+        "region": str(student.region or ""),
+        "highest_education": str(student.highest_education or ""),
+        "imd_band": str(student.imd_band or "Unknown"),
+        "age_band": str(student.age_band or ""),
+        "disability": str(student.disability or ""),
+        "code_presentation": str(student.code_presentation or ""),
+    }
+
+    df = pd.DataFrame([row])
+    x = pd.get_dummies(df, drop_first=True)
+    x.columns = x.columns.str.replace(r"[\[\]<]", "", regex=True)
+
+    for col in feature_columns:
+        if col not in x.columns:
+            x[col] = 0
+
+    return x[feature_columns]
+
+
+def average_profile_features(students) -> dict[str, float]:
+    """
+    Mean of numeric profile fields and one-hot columns across a group of students.
+
+    Used for low-risk baseline comparisons in the UI (e.g. studied_credits, gender_M).
+    """
+    if not students:
+        return {}
+
+    rows = [
+        {
+            "num_of_prev_attempts": int(s.num_of_prev_attempts or 0),
+            "studied_credits": int(s.studied_credits or 0),
+            "gender": str(s.gender or ""),
+            "region": str(s.region or ""),
+            "highest_education": str(s.highest_education or ""),
+            "imd_band": str(s.imd_band or "Unknown"),
+            "age_band": str(s.age_band or ""),
+            "disability": str(s.disability or ""),
+            "code_presentation": str(s.code_presentation or ""),
+        }
+        for s in students
+    ]
+
+    df = pd.DataFrame(rows)
+    x = pd.get_dummies(df, drop_first=True)
+    x.columns = x.columns.str.replace(r"[\[\]<]", "", regex=True)
+    return {str(col): float(x[col].mean()) for col in x.columns}
