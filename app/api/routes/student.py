@@ -27,6 +27,7 @@ from app.schemas.student_with_features import (
     StudentWithFeaturesCreateResponse,
 )
 from app.schemas.feature_averages import FeatureAveragesResponse
+from app.ml.preprocessing import average_profile_features
 from app.services.prediction_service import predict_for_student
 
 # group the endpoints together
@@ -245,6 +246,20 @@ def get_feature_averages_for_student(
         "assessment_count": float(getattr(row, "assessment_count", 0) or 0),
         "avg_weight": float(getattr(row, "avg_weight", 0) or 0),
     }
+
+    baseline_students = (
+        db.query(Student)
+        .filter(Student.student_id.in_(low_risk_student_ids))
+        .all()
+    )
+    if not baseline_students:
+        baseline_students = (
+            db.query(Student)
+            .filter(Student.dataset_id == student.dataset_id)
+            .all()
+        )
+
+    avgs.update(average_profile_features(baseline_students))
 
     return {
         "dataset_id": student.dataset_id,

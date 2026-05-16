@@ -1,1 +1,1 @@
-This is where you should store the csv files if you are retraining the with the notebook 
+This is where you should store the csv files if you are retraining the model with the notebook 
