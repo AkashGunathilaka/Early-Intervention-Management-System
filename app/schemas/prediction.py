@@ -1,3 +1,9 @@
+"""
+Prediction schemas
+
+these define the request and response formats used by prediction endpoints
+"""
+
 from pydantic import BaseModel
 from datetime import datetime
 

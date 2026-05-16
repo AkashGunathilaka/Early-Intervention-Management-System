@@ -1,3 +1,5 @@
+// Small metric tile used for dashboard stats
+
 export function Stat({
   label,
   value,

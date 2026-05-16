@@ -1,6 +1,9 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import { api } from '../../lib/api'
 
+// Admin page for changing risk thresholds
+// these values decide whether a score is shown as high medium or low
+
 type Thresholds = {
   id: number
   high_threshold: number
@@ -16,6 +19,7 @@ export function AdminRiskThresholdsPage() {
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
+  // load the thresholds when the page opens 
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -38,6 +42,7 @@ export function AdminRiskThresholdsPage() {
     }
   }, [])
 
+ 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setMessage(null)
@@ -49,6 +54,8 @@ export function AdminRiskThresholdsPage() {
         medium_threshold: Number(medium),
       }
       const res = await api.put<Thresholds>('/admin/risk-thresholds/', payload)
+
+      // show the new thresholds
       setData(res.data)
       setHigh(String(res.data.high_threshold))
       setMedium(String(res.data.medium_threshold))

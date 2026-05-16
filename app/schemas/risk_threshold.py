@@ -1,3 +1,9 @@
+"""
+RiskThreshold schemas
+
+these define the request and response formats for risk threshold data
+"""
+
 from pydantic import BaseModel, Field
 
 

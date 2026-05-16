@@ -2,6 +2,27 @@ import { type FormEvent, useEffect, useState } from 'react'
 import { api } from '../../lib/api'
 import { Card } from '../../components/ui/Card'
 
+function formatApiDetail(detail: unknown, fallback: string): string {
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item: { loc?: unknown[]; msg?: string }) => {
+        const loc = Array.isArray(item?.loc) ? item.loc!.join('.') : ''
+        const msg = item?.msg ?? ''
+        return loc ? `${loc}: ${msg}` : msg
+      })
+      .filter(Boolean)
+      .join('; ')
+  }
+  return fallback
+}
+
+function isValidEmail(s: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim())
+}
+
+// Admin page managing user accounts admins can create new users and view existing accounts
+
 type User = {
   user_id: number
   full_name: string
@@ -22,6 +43,7 @@ export function AdminUsersPage() {
   const [role, setRole] = useState('staff')
   const [creating, setCreating] = useState(false)
 
+  // Load users for the table
   async function loadUsers(cancelledRef?: { cancelled: boolean }) {
     try {
       setLoading(true)
@@ -29,12 +51,13 @@ export function AdminUsersPage() {
       const res = await api.get<User[]>('/users/')
       if (!cancelledRef?.cancelled) setUsers(res.data)
     } catch (err: any) {
-      if (!cancelledRef?.cancelled) setError(err?.response?.data?.detail ?? 'Failed to load users (admin only)')
+      if (!cancelledRef?.cancelled) setError(formatApiDetail(err?.response?.data?.detail, 'Failed to load users (admin only)'))
     } finally {
       if (!cancelledRef?.cancelled) setLoading(false)
     }
   }
 
+  // load the user list when the page opens
   useEffect(() => {
     const ref = { cancelled: false }
     loadUsers(ref)
@@ -42,6 +65,7 @@ export function AdminUsersPage() {
       ref.cancelled = true
     }
   }, [])
+
 
   async function onCreate(e: FormEvent) {
     e.preventDefault()
@@ -53,11 +77,18 @@ export function AdminUsersPage() {
       return
     }
 
+    const emailTrim = email.trim()
+    if (!isValidEmail(emailTrim)) {
+      setError('Please enter a valid email address (e.g. name@example.com).')
+      return
+    }
+
     setCreating(true)
     try {
+      // create the user, then reload the table
       await api.post('/users/', {
         full_name: fullName.trim(),
-        email: email.trim(),
+        email: emailTrim,
         password,
         role,
       })
@@ -68,7 +99,7 @@ export function AdminUsersPage() {
       setMessage('User created')
       await loadUsers()
     } catch (err: any) {
-      setError(err?.response?.data?.detail ?? 'Failed to create user')
+      setError(formatApiDetail(err?.response?.data?.detail, 'Failed to create user'))
     } finally {
       setCreating(false)
     }
@@ -92,7 +123,7 @@ export function AdminUsersPage() {
             </label>
             <label style={{ display: 'grid', gap: 6 }}>
               Email
-              <input value={email} onChange={(e) => setEmail(e.target.value)} />
+              <input type="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} />
             </label>
             <label style={{ display: 'grid', gap: 6 }}>
               Password
@@ -143,4 +174,3 @@ export function AdminUsersPage() {
     </div>
   )
 }
-

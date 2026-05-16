@@ -2,6 +2,10 @@ import { type FormEvent, useMemo, useState } from 'react'
 import { api } from '../../lib/api'
 import { Card } from '../../components/ui/Card'
 
+// Admin page for ML tasks 
+// Admins can upload datasets, retrain from an existing dataset, or OULAD raw files 
+
+
 type UploadResponse = {
   message: string
   dataset_id: number
@@ -39,11 +43,13 @@ export function AdminMLPage() {
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
+  // Use the typed dataset ID first otherwise use the dataset from the last upload
   const effectiveDatasetId = useMemo(() => {
     if (datasetId.trim()) return Number(datasetId)
     if (uploadResult?.dataset_id) return uploadResult.dataset_id
     return NaN
   }, [datasetId, uploadResult])
+
 
   async function onUpload(e: FormEvent) {
     e.preventDefault()
@@ -75,6 +81,7 @@ export function AdminMLPage() {
     }
   }
 
+  // Standard retrain from whatever rows already exist for dataset_id.
   async function onRetrain() {
     setError(null)
     setMessage(null)
@@ -88,6 +95,7 @@ export function AdminMLPage() {
 
     setRetraining(true)
     try {
+      // retrain from the selected dataset
       const res = await api.post<RetrainResponse>('/admin/ml/retrain', null, {
         params: { dataset_id: effectiveDatasetId },
       })
@@ -100,6 +108,7 @@ export function AdminMLPage() {
     }
   }
 
+ 
   async function onRetrainOulad() {
     setError(null)
     setMessage(null)
@@ -124,6 +133,7 @@ export function AdminMLPage() {
 
     setRetrainingOulad(true)
     try {
+      // retrain from the OULAD raw files
       const res = await api.post<RetrainOuladResponse>('/admin/ml/retrain-oulad', null, {
         params: {
           dataset_id: effectiveDatasetId,

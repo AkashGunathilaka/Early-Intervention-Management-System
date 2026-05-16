@@ -1,3 +1,9 @@
+"""
+ModelRecord model
+
+each row represents a trained model saved on disk, along with its metrics
+"""
+
 from sqlalchemy import Boolean, Column, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
@@ -23,5 +29,4 @@ class ModelRecord(Base):
     is_locked = Column(Boolean, default=False, nullable=False)
 
 
-    #connecting the models with relationships
     predictions = relationship("Prediction", back_populates="model_record", cascade="all, delete-orphan")

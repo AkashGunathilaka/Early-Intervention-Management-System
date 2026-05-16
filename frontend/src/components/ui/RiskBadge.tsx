@@ -1,3 +1,5 @@
+// Small label used to show a students risk level
+
 export type RiskLevel = 'Low' | 'Medium' | 'High'
 
 export function RiskBadge({ level, showSuffix }: { level: RiskLevel; showSuffix?: boolean }) {

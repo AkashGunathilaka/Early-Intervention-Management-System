@@ -1,3 +1,5 @@
+// Layout used for logged in pages showing the top navigation, logout button and the page content
+
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
@@ -6,11 +8,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const loc = useLocation()
   const { user, logout: doLogout } = useAuth()
 
+  // log the user out and send them back to the login 
   function logout() {
     doLogout()
     nav('/login')
   }
 
+  // mark the current page as active in the navigation
   const isActive = (path: string) => (loc.pathname === path ? true : loc.pathname.startsWith(path + '/'))
 
   return (
@@ -26,9 +30,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <Link to="/students" className={`navLink ${isActive('/students') ? 'navLinkActive' : ''}`}>
                 Students
               </Link>
-              <Link to="/change-password" className={`navLink ${isActive('/change-password') ? 'navLinkActive' : ''}`}>
-                Password
+              <Link to="/users" className={`navLink ${isActive('/users') ? 'navLinkActive' : ''}`}>
+                Accounts
               </Link>
+              {/* only show the admin links if the user is an admin */}
               {user?.role === 'admin' ? (
                 <>
                   <Link to="/admin/models" className={`navLink ${isActive('/admin/models') ? 'navLinkActive' : ''}`}>

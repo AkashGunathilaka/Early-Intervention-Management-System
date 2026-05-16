@@ -1,3 +1,8 @@
+"""
+Intervention routes and rule based support suggestions
+
+"""
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.models.feature_snapshot import FeatureSnapshot
@@ -13,8 +18,11 @@ from app.schemas.intervention import (
 from app.api.dependencies import get_current_active_user
 from app.models.user import User
 
+# group together
 router = APIRouter(prefix="/interventions", tags=["Interventions"])
 
+
+#returns a simple suggestion for a student using their latest prediction and snapshot
 @router.get("/suggestions/{student_id}")
 def get_intervention_suggestions(
     student_id: int,
@@ -24,7 +32,7 @@ def get_intervention_suggestions(
     student = db.query(Student).filter(Student.student_id == student_id).first()
     if student is None:
         raise HTTPException(status_code=404, detail="Student not found")
-
+# get the students latest prediction and snapshot to generate suggestions
     latest_prediction = (
         db.query(Prediction)
         .filter(Prediction.student_id == student_id)
@@ -44,7 +52,6 @@ def get_intervention_suggestions(
     suggestions: list[str] = []
     priority = "low"
 
-    # Simple rule-based suggestions (kept intentionally deterministic and transparent)
     if latest_prediction.risk_level == "High":
         priority = "high"
         suggestions.extend([
@@ -67,7 +74,7 @@ def get_intervention_suggestions(
             "Encourage consistent engagement with learning materials.",
         ])
 
-    # Feature-driven nudge (if snapshot exists)
+    # add extra practical suggestions if the latest feature snapshot shows specific warning signs
     if latest_snapshot is not None:
         if (latest_snapshot.avg_score or 0) < 40:
             suggestions.append("Low average score detected: recommend revision plan and assessment support.")
@@ -86,6 +93,8 @@ def get_intervention_suggestions(
         "suggestions": suggestions,
     }
 
+
+# Creates a new intervention record and links it to the student and prediction
 @router.post("/", response_model=InterventionResponse)
 def create_intervention(
     intervention: InterventionCreate,
@@ -104,6 +113,7 @@ def create_intervention(
     if prediction is None:
         raise HTTPException(status_code=404, detail="Prediction not found")
 
+    # Stops someone from linking student A to a prediction that belongs to student B.
     if prediction.student_id != intervention.student_id:
         raise HTTPException(
             status_code=400,
@@ -128,6 +138,7 @@ def create_intervention(
     return new_intervention
 
 
+# Returns all intervention records for overview
 @router.get("/", response_model=list[InterventionResponse])
 def get_interventions(
     db: Session = Depends(get_db),
@@ -136,6 +147,7 @@ def get_interventions(
     return db.query(Intervention).all()
 
 
+# returns intervention history for one student
 @router.get("/student/{student_id}", response_model=list[InterventionResponse])
 def get_interventions_for_student(
     student_id: int,
@@ -151,6 +163,7 @@ def get_interventions_for_student(
     ).all()
 
 
+# returns one intervention by id
 @router.get("/{intervention_id}", response_model=InterventionResponse)
 def get_intervention(
     intervention_id: int,
@@ -167,6 +180,7 @@ def get_intervention(
     return intervention
 
 
+# updates an existing intervention
 @router.put("/{intervention_id}", response_model=InterventionResponse)
 def update_intervention(
     intervention_id: int,

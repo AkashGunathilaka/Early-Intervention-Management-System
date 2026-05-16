@@ -1,3 +1,9 @@
+"""
+Entry point 
+
+this file creates the backend, sets up CORS, creates the database tables and wires up all the routes
+"""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.db.database import Base, engine
@@ -13,13 +19,13 @@ from app.api.routes.ml_admin import router as ml_admin_router
 from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.data_admin import router as data_admin_router
 from app.api.routes.dataset import router as dataset_router
-# Import models so SQLAlchemy knows about them
 
+# Create any missing tables on startup 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Early Intervention Management System")
 
-# CORS for local frontend dev (Vite)
+# allows the frontend to talk to the backend during local development
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -31,6 +37,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# register all the routes
 app.include_router(user_router)
 app.include_router(student_router)
 app.include_router(feature_snapshot_router)

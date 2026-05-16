@@ -1,3 +1,5 @@
+# CREATE SYNTHETIC DATA FOR TESTING 
+
 import random
 from datetime import datetime
 
@@ -17,6 +19,7 @@ def clamp(x: float, lo: float, hi: float) -> float:
 
 
 def get_or_create_synthetic_dataset(db: Session) -> Dataset:
+    # use the existing synthetic dataset or create a new one
     ds = (
         db.query(Dataset)
         .filter(Dataset.dataset_name == "Synthetic Dataset")
@@ -27,7 +30,7 @@ def get_or_create_synthetic_dataset(db: Session) -> Dataset:
 
     
 
-    from app.models.user import User  # local import to avoid circulars
+    from app.models.user import User  # local import to avoid circular imports during startup 
 
     user = db.query(User).order_by(User.user_id.asc()).first()
     if not user:
@@ -48,6 +51,7 @@ def get_or_create_synthetic_dataset(db: Session) -> Dataset:
 
 
 def synthetic_student_row(dataset_id: int) -> Student:
+    # build one random student row for the synthetic dataset
     code_module = random.choice(["AAA", "BBB", "CCC", "DDD", "EEE", "FFF", "GGG"])
     code_presentation = random.choice(["2013B", "2013J", "2014B", "2014J"])
     gender = random.choice(["M", "F"])
@@ -82,9 +86,9 @@ def synthetic_student_row(dataset_id: int) -> Student:
 
 def synthetic_snapshot(days_from_start: int, persona: str) -> FeatureSnapshot:
     """
-    persona in {"low", "medium", "high"} controls plausible ranges.
-    This intentionally injects correlation so the ML workflow produces non-trivial outputs.
-    It should not be used to validate real-world model performance.
+    Build one feature snapshot for a synthetic student
+
+    the persona controls the rough risk profile so demo predictions are not completely random 
     """
     if persona == "high":  # high risk: low engagement + low assessment
         total_clicks = random.uniform(10, 80)
@@ -96,7 +100,7 @@ def synthetic_snapshot(days_from_start: int, persona: str) -> FeatureSnapshot:
         vle_records = random.randint(10, 35)
         assessment_count = random.randint(1, 3)
         avg_score = random.uniform(40, 70)
-    else:  
+    else:  # low risk: high engagement + high assessment
         total_clicks = random.uniform(150, 450)
         vle_records = random.randint(25, 90)
         assessment_count = random.randint(2, 5)
@@ -104,11 +108,11 @@ def synthetic_snapshot(days_from_start: int, persona: str) -> FeatureSnapshot:
 
     avg_clicks = total_clicks / max(vle_records, 1)
 
-    # simple derived values
+    # keep these related to the generated assessment values
     total_score = avg_score * max(assessment_count, 1)
     avg_weight = random.uniform(10, 40)
 
-    # optional "ground truth" label for your own evaluation (not required)
+    # optional label for checking demo data 
     at_risk_label = {"high": 1, "medium": 0, "low": 0}.get(persona)
 
     return FeatureSnapshot(

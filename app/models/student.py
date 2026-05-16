@@ -1,3 +1,9 @@
+"""
+Student model 
+
+each row stores one student and their course/profile details related feature snapshots, predictions, and interventions are linked back to this record 
+"""
+
 from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
 
@@ -11,10 +17,10 @@ class Student(Base):
 
     dataset_id = Column(Integer, ForeignKey("datasets.dataset_id"), nullable=False)
 
-    # Student attributes used for cohorting and potential model features
     code_module = Column(String)
     code_presentation = Column(String)
 
+    # student profile fields for filterign and model features
     gender = Column(String)
     region = Column(String)
     highest_education = Column(String)
@@ -24,7 +30,7 @@ class Student(Base):
     studied_credits = Column(Integer)
     disability = Column(String)
 
-    #connecting the models with relationships
+#delete related records when a student is deleted
     feature_snapshots = relationship("FeatureSnapshot", back_populates="student", cascade="all, delete-orphan")
     predictions = relationship("Prediction", back_populates="student", cascade="all, delete-orphan")
     interventions = relationship("Intervention", back_populates="student", cascade="all, delete-orphan")

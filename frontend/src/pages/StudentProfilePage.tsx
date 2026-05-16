@@ -6,6 +6,10 @@ import { Card } from '../components/ui/Card'
 import { RiskBadge, type RiskLevel } from '../components/ui/RiskBadge'
 import { Stat as BigStat } from '../components/ui/Stat'
 import { useAuth } from '../context/AuthContext'
+import type { FeatureSnapshotRow } from '../types/featureSnapshot'
+
+// Student profile page
+// shows the latest snapshot, prediction, trend charts, interventions, suggested actions, and admin-only edit/delete
 
 type Prediction = {
   prediction_id: number
@@ -15,18 +19,6 @@ type Prediction = {
   confidence_score: number
   top_factors: string | null
   prediction_date?: string
-}
-
-type Snapshot = {
-  feature_id: number
-  days_from_start?: number
-  total_clicks: number
-  avg_clicks: number
-  vle_records: number
-  avg_score: number
-  total_score: number
-  assessment_count: number
-  avg_weight: number
 }
 
 type Student = {
@@ -49,7 +41,7 @@ type Intervention = {
 
 type StudentProfile = {
   student: Student
-  latest_feature_snapshot: Snapshot | null
+  latest_feature_snapshot: FeatureSnapshotRow | null
   latest_prediction: Prediction | null
   interventions: Intervention[]
 }
@@ -93,7 +85,7 @@ export function StudentProfilePage() {
   const [creatingIntervention, setCreatingIntervention] = useState(false)
   const [updatingInterventionId, setUpdatingInterventionId] = useState<number | null>(null)
   const [featureAverages, setFeatureAverages] = useState<FeatureAverages | null>(null)
-  const [snapshotHistory, setSnapshotHistory] = useState<Snapshot[]>([])
+  const [snapshotHistory, setSnapshotHistory] = useState<FeatureSnapshotRow[]>([])
   const [predictionHistory, setPredictionHistory] = useState<Prediction[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
 
@@ -127,6 +119,7 @@ export function StudentProfilePage() {
   const [studentCodeModule, setStudentCodeModule] = useState('')
   const [studentCodePresentation, setStudentCodePresentation] = useState('')
 
+// load the student profile and latest prediction comparison
   async function loadProfile(cancelledRef?: { cancelled: boolean }) {
     try {
       setLoading(true)
@@ -151,12 +144,14 @@ export function StudentProfilePage() {
     }
   }
 
+
   async function saveStudentEdits(e: FormEvent) {
     e.preventDefault()
     if (!data) return
     setError(null)
     setSavingStudent(true)
     try {
+      // save the editable fields and reload the profile
       await api.put(`/students/${studentId}`, {
         region: studentRegion.trim() ? studentRegion.trim() : null,
         code_module: studentCodeModule.trim() ? studentCodeModule.trim() : null,
@@ -171,6 +166,7 @@ export function StudentProfilePage() {
     }
   }
 
+  // delete student 
   async function deleteStudent() {
     if (!window.confirm('Delete this student? This also deletes snapshots, predictions, and interventions.')) return
     setError(null)
@@ -185,10 +181,12 @@ export function StudentProfilePage() {
     }
   }
 
+
   async function generatePrediction() {
     setGenerating(true)
     setError(null)
     try {
+      // create a prediction and then reload the profile
       await api.post(`/predictions/generate/${studentId}`)
       await loadProfile()
     } catch (err: any) {
@@ -202,11 +200,11 @@ export function StudentProfilePage() {
     setLoadingHistory(true)
     try {
       const [snapRes, predRes] = await Promise.all([
-        api.get<Snapshot[]>(`/feature-snapshots/student/${studentId}`),
+        api.get<FeatureSnapshotRow[]>(`/feature-snapshots/student/${studentId}`),
         api.get<Prediction[]>(`/predictions/student/${studentId}`),
       ])
       if (cancelledRef?.cancelled) return
-      // newest first
+      // sort the newest rows first
       setSnapshotHistory(snapRes.data.slice().sort((a, b) => (a.feature_id < b.feature_id ? 1 : -1)))
       setPredictionHistory(predRes.data.slice().sort((a, b) => (a.prediction_id < b.prediction_id ? 1 : -1)))
     } catch {
@@ -218,6 +216,7 @@ export function StudentProfilePage() {
       if (!cancelledRef?.cancelled) setLoadingHistory(false)
     }
   }
+
 
   async function createSnapshot() {
     setCreatingSnapshot(true)
@@ -240,6 +239,7 @@ export function StudentProfilePage() {
         at_risk_label: null,
       })
 
+      // optionally create a prediction from the snapshot
       if (snapAutoPredict) {
         await api.post(`/predictions/generate/${studentId}`)
       }
@@ -253,6 +253,8 @@ export function StudentProfilePage() {
     }
   }
 
+  // Suggestions aren't auto-fetched — they're LLM-ish work we only pull when
+  // someone explicitly asks, to keep the profile load light.
   async function loadSuggestions() {
     setLoadingSuggestions(true)
     setError(null)
@@ -267,6 +269,8 @@ export function StudentProfilePage() {
     }
   }
 
+  // Interventions always hang off a prediction_id, so we block the form until
+  // one exists — avoids orphan rows the backend would reject anyway.
   async function createIntervention() {
     if (!prediction) {
       setError('Generate a prediction first (needed for interventions).')
@@ -305,10 +309,12 @@ export function StudentProfilePage() {
     }
   }
 
+
   async function saveInterventionUpdate(interventionId: number) {
     setUpdatingInterventionId(interventionId)
     setError(null)
     try {
+      // only send the fields that can be changed from this table
       const payload: any = {
         action_status: editStatus || undefined,
         priority_level: editPriority || undefined,
@@ -325,6 +331,7 @@ export function StudentProfilePage() {
     }
   }
 
+  // reload profile data when the student ID changes
   useEffect(() => {
     if (!Number.isFinite(studentId)) {
       setError('Invalid student id')
@@ -348,6 +355,7 @@ export function StudentProfilePage() {
   const snapshot = data?.latest_feature_snapshot ?? null
   const latestDays = snapshot?.days_from_start ?? null
 
+  // Baseline table 
   useEffect(() => {
     if (!snapshot) {
       setFeatureAverages(null)
@@ -367,7 +375,7 @@ export function StudentProfilePage() {
     }
   }, [studentId, snapshot?.feature_id])
 
-  // Prefill snapshot form from latest snapshot (so "update" is easy)
+  // use the latest snapshot as the starting values for the new snapshot form
   useEffect(() => {
     if (!snapshot) return
     setSnapDays(snapshot.days_from_start ?? 30)
@@ -515,6 +523,56 @@ export function StudentProfilePage() {
                   </div>
                 </form>
               )}
+            </Card>
+          ) : null}
+
+          {prediction && featureAverages ? (
+            <Card title="Low-risk baseline (average) vs this student">
+              <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
+                Baseline is calculated from <strong>low-risk students</strong> in the same dataset (latest prediction = Low) at days_from_start=
+                <strong>{featureAverages.days_from_start}</strong>. Δ is <strong>(low-risk avg − current)</strong>.
+              </div>
+
+              <table width="100%" cellPadding={8} style={{ borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border)' }}>
+                    <th>Feature</th>
+                    <th>Current</th>
+                    <th>Low-risk avg</th>
+                    <th>Δ (avg − current)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {snapshot ? (
+                    [
+                      ['total_clicks', snapshot.total_clicks],
+                      ['avg_clicks', snapshot.avg_clicks],
+                      ['vle_records', snapshot.vle_records],
+                      ['avg_score', snapshot.avg_score],
+                      ['total_score', snapshot.total_score],
+                      ['assessment_count', snapshot.assessment_count],
+                      ['avg_weight', snapshot.avg_weight],
+                    ].map(([k, current]) => {
+                      const avg = featureAverages.averages[String(k)]
+                      const delta = typeof avg === 'number' ? avg - Number(current) : null
+                      return (
+                        <tr key={String(k)} style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td>{String(k)}</td>
+                          <td>{Number(current).toFixed(3)}</td>
+                          <td>{typeof avg === 'number' ? avg.toFixed(3) : '-'}</td>
+                          <td>{delta == null ? '-' : (delta >= 0 ? '+' : '') + delta.toFixed(3)}</td>
+                        </tr>
+                      )
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={4} className="muted">
+                        No feature snapshot available.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </Card>
           ) : null}
 
@@ -824,7 +882,7 @@ export function StudentProfilePage() {
             )}
           </Card>
 
-          <Card title="Suggested interventions (from model + rules)">
+          <Card title="Suggested interventions">
             {!prediction ? (
               <p className="muted">Generate a prediction to get suggestions.</p>
             ) : (
@@ -843,7 +901,7 @@ export function StudentProfilePage() {
                 {suggestions ? (
                   <>
                     <div style={{ fontSize: 12, color: 'var(--text)' }}>
-                      From prediction_id={suggestions.prediction_id} risk_score={Number(suggestions.risk_score).toFixed(3)}
+                      Based on the latest prediction (risk_score={Number(suggestions.risk_score).toFixed(3)})
                     </div>
 
                     {suggestions.suggestions?.length ? (
@@ -896,6 +954,7 @@ type TopFactorRow = {
   importance: number
 }
 
+// SHAP explanations arrive as one long string; we parse into rows for the table.
 function parseTopFactors(input: string): TopFactorRow[] | null {
   const trimmed = input.trim()
   if (!trimmed) return []

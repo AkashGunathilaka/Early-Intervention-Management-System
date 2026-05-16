@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { api } from '../../lib/api'
 import { Card } from '../../components/ui/Card'
 
+// Admin page for importing student data from a CSV
+// CSV should be under the uploads/ directory and contain the relevant columns
+
 type ImportResult = {
   dataset_id: number
   early_days: number | null
@@ -33,6 +36,7 @@ export function AdminDataPage() {
 
     setRunning(true)
     try {
+      // send import options as query parameters
       const res = await api.post<ImportResult>('/admin/data/import-oulad', null, {
         params: {
           dataset_id: dsId,
@@ -55,7 +59,7 @@ export function AdminDataPage() {
         <div style={{ display: 'grid', gap: 6 }}>
           <h1>Admin — Data</h1>
           <p className="muted">
-            Bulk import Students + Feature Snapshots from a single CSV (matching your app’s column names), optionally generating predictions as well.
+            Bulk import Students + Feature Snapshots from a single CSV.
           </p>
         </div>
       </div>

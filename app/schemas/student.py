@@ -1,3 +1,9 @@
+"""
+Student schemas
+
+these define the request and response formats used by the student endpoints
+"""
+
 from pydantic import BaseModel
 
 

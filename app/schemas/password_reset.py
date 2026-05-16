@@ -1,3 +1,9 @@
+"""
+Password reset schemas
+
+used for requesting a password reset and then confirming the reset
+"""
+
 from pydantic import BaseModel, EmailStr
 
 

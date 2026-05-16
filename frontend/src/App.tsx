@@ -1,3 +1,6 @@
+// Main route setup for the frontend
+// AuthProvider and DatasetProvider are kept here so every page can use them 
+
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useEffect } from 'react'
 import { LoginPage } from './pages/LoginPage'
@@ -17,11 +20,12 @@ import { AdminRiskThresholdsPage } from './pages/admin/AdminRiskThresholdsPage'
 import { AdminDataPage } from './pages/admin/AdminDataPage'
 import { AdminUsersPage } from './pages/admin/AdminUsersPage'
 import { AuthProvider } from './context/AuthContext'
-import { ChangePasswordPage } from './pages/ChangePasswordPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { DatasetProvider } from './context/DatasetContext'
+import { UsersPasswordPage } from './pages/UsersPasswordPage'
 
 function App() {
+  // Make sure the saved login token is attached when the app starts
   useEffect(() => {
     setAuthToken(getToken())
   }, [])
@@ -30,7 +34,9 @@ function App() {
     <AuthProvider>
       <DatasetProvider>
         <Routes>
+          {/* Start users on the dashboard */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          {/* Pages that do not need login */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route
@@ -83,16 +89,34 @@ function App() {
               </RequireAuth>
             }
           />
+          {/* Old account URLs now point to the same account page. */}
           <Route
             path="/change-password"
             element={
               <RequireAuth>
+                <Navigate to="/users" replace />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/account"
+            element={
+              <RequireAuth>
+                <Navigate to="/users" replace />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/users"
+            element={
+              <RequireAuth>
                 <AppLayout>
-                  <ChangePasswordPage />
+                  <UsersPasswordPage />
                 </AppLayout>
               </RequireAuth>
             }
           />
+          {/* Admin pages need both login and admin access. */}
           <Route
             path="/admin/models"
             element={
@@ -153,6 +177,7 @@ function App() {
               </RequireAuth>
             }
           />
+          {/* Send unknown routes back to a safe page. */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </DatasetProvider>

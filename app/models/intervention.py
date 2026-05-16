@@ -1,3 +1,9 @@
+"""
+Intervention model
+
+each row records an action taken by staff member for a student
+"""
+
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -9,7 +15,6 @@ class Intervention(Base):
     __tablename__ = "interventions"
 
     intervention_id = Column(Integer, primary_key=True, index=True)
-
     student_id = Column(Integer, ForeignKey("students.student_id"), nullable=False)
     prediction_id = Column(Integer, ForeignKey("predictions.prediction_id"), nullable=False)
     created_by = Column(Integer, ForeignKey("users.user_id"), nullable=False)
@@ -21,6 +26,7 @@ class Intervention(Base):
     notes = Column(Text, nullable=True)
     follow_up_date = Column(DateTime, nullable=True)
 
+    # Created and updated timestamps are handled by the database
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(
         DateTime(timezone=True),

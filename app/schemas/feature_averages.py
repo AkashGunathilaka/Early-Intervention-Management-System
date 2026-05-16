@@ -1,3 +1,9 @@
+"""
+Feature average response schema 
+
+used by the student profile page to compare student activity with average values
+"""
+
 from pydantic import BaseModel
 
 

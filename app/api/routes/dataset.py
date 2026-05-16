@@ -1,3 +1,5 @@
+#Dataset metadata
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -10,6 +12,7 @@ from app.schemas.dataset import DatasetCreate, DatasetResponse
 router = APIRouter(prefix="/datasets", tags=["Datasets"])
 
 
+# Lists all datasets saved in the system ordered by ID
 @router.get("/", response_model=list[DatasetResponse])
 def list_datasets(
     db: Session = Depends(get_db),
@@ -18,6 +21,7 @@ def list_datasets(
     return db.query(Dataset).order_by(Dataset.dataset_id.asc()).all()
 
 
+# Creates a new dataset record manually
 @router.post("/", response_model=DatasetResponse)
 def create_dataset(
     payload: DatasetCreate,
@@ -31,6 +35,7 @@ def create_dataset(
     ds = Dataset(
         dataset_name=name,
         source_type=payload.source_type.strip() or "manual",
+        # Manual cohorts start without a CSV file. Imports or ML flows add files later
         file_path=None,
         status="created",
         uploaded_by=current_user.user_id,

@@ -1,3 +1,9 @@
+"""
+Student profile schemas
+
+these combine student data with related predictions and intervention data, so the frontend can load the page with fewer api requests
+"""
+
 from pydantic import BaseModel
 
 from app.schemas.student import StudentResponse

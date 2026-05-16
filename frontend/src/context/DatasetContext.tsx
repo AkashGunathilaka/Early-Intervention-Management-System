@@ -1,3 +1,5 @@
+// Stores the selected dataset for the app so it survives page reloads and stays in sync across browser tabs
+
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 
 type DatasetContextValue = {
@@ -9,6 +11,7 @@ const DatasetContext = createContext<DatasetContextValue | undefined>(undefined)
 
 const STORAGE_KEY = 'eims.datasetId'
 
+// Read the saved dataset id from localstorage
 function readStoredDatasetId(): number | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -29,11 +32,11 @@ export function DatasetProvider({ children }: { children: React.ReactNode }) {
       if (id == null) localStorage.removeItem(STORAGE_KEY)
       else localStorage.setItem(STORAGE_KEY, String(id))
     } catch {
-      // ignore storage failures (private mode, etc.)
+      // if the local storage fails keep the selection only for this tab
     }
   }
 
-  // If localStorage changes in another tab, keep in sync.
+  // Keep it in sync across tabs
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key !== STORAGE_KEY) return
@@ -53,4 +56,3 @@ export function useDataset() {
   if (!ctx) throw new Error('useDataset must be used within DatasetProvider')
   return ctx
 }
-

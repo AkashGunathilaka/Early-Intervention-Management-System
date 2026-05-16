@@ -1,3 +1,7 @@
+"""
+Used when a logged in user wants to change their password
+"""
+
 from pydantic import BaseModel
 
 

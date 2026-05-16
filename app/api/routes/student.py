@@ -1,3 +1,9 @@
+"""
+Student routes
+
+includes the normal CRUD endpoints, search and the dashboard profile view
+"""
+
 from enum import Enum
 from typing import List
 
@@ -5,6 +11,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
+from app.models.dataset import Dataset
 from app.models.prediction import Prediction
 from app.models.feature_snapshot import FeatureSnapshot
 from app.models.intervention import Intervention
@@ -21,14 +29,19 @@ from app.schemas.student_with_features import (
 from app.schemas.feature_averages import FeatureAveragesResponse
 from app.services.prediction_service import predict_for_student
 
+# group the endpoints together
 router = APIRouter(prefix="/students", tags=["Students"])
 
+
+# allowed risk levels for filtering students
 class RiskLevel(str, Enum):
     Low = "Low"
     Medium = "Medium"
     High = "High"
 
 
+# creates a new student record
+# this only adds the student details; feature snapshots and predictions are added seperately
 @router.post("/", response_model=StudentResponse)
 def create_student(
     student: StudentCreate,
@@ -55,17 +68,23 @@ def create_student(
     return new_student
 
 
+# Creates student and their first feature snapshot in one request
 @router.post("/create-with-features", response_model=StudentWithFeaturesCreateResponse)
 def create_student_with_features(
     payload: StudentWithFeaturesCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """
-    Create a Student and an initial FeatureSnapshot in one step.
-    Optionally generates a Prediction immediately.
-    """
     s = payload.student
+
+    # make sure the selected dataset exist before attaching the student to it
+    dataset = db.query(Dataset).filter(Dataset.dataset_id == s.dataset_id).first()
+    if dataset is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Dataset {s.dataset_id} not found. Create or select a dataset first.",
+        )
+
     new_student = Student(
         dataset_id=s.dataset_id,
         code_module=s.code_module,
@@ -79,33 +98,53 @@ def create_student_with_features(
         studied_credits=s.studied_credits,
         disability=s.disability,
     )
-    db.add(new_student)
-    db.flush()  # get student_id without committing yet
 
-    snapshot = FeatureSnapshot(
-        student_id=new_student.student_id,
-        days_from_start=payload.days_from_start,
-        total_clicks=payload.total_clicks,
-        avg_clicks=payload.avg_clicks,
-        vle_records=payload.vle_records,
-        avg_score=payload.avg_score,
-        total_score=payload.total_score,
-        assessment_count=payload.assessment_count,
-        avg_weight=payload.avg_weight,
-        at_risk_label=payload.at_risk_label,
-    )
-    db.add(snapshot)
-    db.flush()
+    try:
+        db.add(new_student)
+        # Flush gives the new student an ID before we commit so the snapshot can use it as a foreign key
+        db.flush()
+
+        snapshot = FeatureSnapshot(
+            student_id=new_student.student_id,
+            days_from_start=payload.days_from_start,
+            total_clicks=payload.total_clicks,
+            avg_clicks=payload.avg_clicks,
+            vle_records=payload.vle_records,
+            avg_score=payload.avg_score,
+            total_score=payload.total_score,
+            assessment_count=payload.assessment_count,
+            avg_weight=payload.avg_weight,
+            at_risk_label=payload.at_risk_label,
+        )
+        db.add(snapshot)
+        db.flush()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=f"Could not create student record: {exc.orig}",
+        )
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not create student record: {exc}",
+        )
 
     prediction = None
+    prediction_error = None
     if payload.generate_prediction:
-        # predict_for_student commits + refreshes prediction
-        # Ensure student + snapshot are committed first
+        # Commit first so the prediction service can read the new student and snapshot
         db.commit()
         db.refresh(new_student)
         db.refresh(snapshot)
-        prediction = predict_for_student(student_id=new_student.student_id, db=db)
-        # predict_for_student already committed
+        try:
+            prediction = predict_for_student(student_id=new_student.student_id, db=db)
+        except HTTPException as exc:
+            prediction_error = str(exc.detail)
+        except Exception as exc:
+            db.rollback()
+            prediction_error = f"Prediction generation failed: {exc}"
         db.refresh(snapshot)
     else:
         db.commit()
@@ -116,9 +155,11 @@ def create_student_with_features(
         "student": new_student,
         "feature_snapshot": snapshot,
         "prediction": prediction,
+        "prediction_error": prediction_error,
     }
 
 
+# Get average feature values to compare against selected student
 @router.get("/{student_id}/feature-averages", response_model=FeatureAveragesResponse)
 def get_feature_averages_for_student(
     student_id: int,
@@ -126,10 +167,6 @@ def get_feature_averages_for_student(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    """
-    Return dataset-level averages for engineered feature snapshot columns, so the UI can show
-    'student value vs average' explanations.
-    """
     student = db.query(Student).filter(Student.student_id == student_id).first()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
@@ -145,6 +182,23 @@ def get_feature_averages_for_student(
 
     target_days = days_from_start if days_from_start is not None else latest_snapshot.days_from_start
 
+    # get each students latest prediction inside this dataset.
+    latest_pred_ids = (
+        db.query(Prediction.student_id, func.max(Prediction.prediction_id).label("max_pid"))
+        .join(Student, Student.student_id == Prediction.student_id)
+        .filter(Student.dataset_id == student.dataset_id)
+        .group_by(Prediction.student_id)
+        .subquery()
+    )
+
+    # Use only student whose latest prediction is low risk
+    low_risk_student_ids = (
+        db.query(Prediction.student_id)
+        .join(latest_pred_ids, Prediction.prediction_id == latest_pred_ids.c.max_pid)
+        .filter(Prediction.risk_level == "Low")
+        .subquery()
+    )
+
     q = (
         db.query(
             func.count(FeatureSnapshot.feature_id).label("n"),
@@ -156,12 +210,31 @@ def get_feature_averages_for_student(
             func.avg(FeatureSnapshot.assessment_count).label("assessment_count"),
             func.avg(FeatureSnapshot.avg_weight).label("avg_weight"),
         )
-        .join(Student, Student.student_id == FeatureSnapshot.student_id)
-        .filter(Student.dataset_id == student.dataset_id)
+        .filter(FeatureSnapshot.student_id.in_(low_risk_student_ids))
         .filter(FeatureSnapshot.days_from_start == target_days)
     )
     row = q.first()
     n = int(getattr(row, "n", 0) or 0)
+
+    # If there are no low risk students for this point in time, use the whole dataset so the dashboard can still compare
+    if n == 0:
+        row = (
+            db.query(
+                func.count(FeatureSnapshot.feature_id).label("n"),
+                func.avg(FeatureSnapshot.total_clicks).label("total_clicks"),
+                func.avg(FeatureSnapshot.avg_clicks).label("avg_clicks"),
+                func.avg(FeatureSnapshot.vle_records).label("vle_records"),
+                func.avg(FeatureSnapshot.avg_score).label("avg_score"),
+                func.avg(FeatureSnapshot.total_score).label("total_score"),
+                func.avg(FeatureSnapshot.assessment_count).label("assessment_count"),
+                func.avg(FeatureSnapshot.avg_weight).label("avg_weight"),
+            )
+            .join(Student, Student.student_id == FeatureSnapshot.student_id)
+            .filter(Student.dataset_id == student.dataset_id)
+            .filter(FeatureSnapshot.days_from_start == target_days)
+            .first()
+        )
+        n = int(getattr(row, "n", 0) or 0)
 
     avgs = {
         "total_clicks": float(getattr(row, "total_clicks", 0) or 0),
@@ -180,6 +253,7 @@ def get_feature_averages_for_student(
         "averages": avgs,
     }
 
+# return all students
 @router.get("/", response_model=List[StudentResponse])
 def get_students(
     db: Session = Depends(get_db),
@@ -188,6 +262,8 @@ def get_students(
     return db.query(Student).all()
 
 
+# Search students using optional filters
+# Latest prediction data is added afterwards so the UI can show the current risk level
 @router.get("/search", response_model=list[StudentSearchResult])
 def search_students(
     dataset_id: int | None = Query(default=None, description="Filter by dataset_id"),
@@ -213,7 +289,6 @@ def search_students(
 
     student_ids = [s.student_id for s in students]
 
-    # latest prediction per student (by max prediction_id)
     latest_pred_ids = (
         db.query(Prediction.student_id, func.max(Prediction.prediction_id).label("max_pid"))
         .filter(Prediction.student_id.in_(student_ids))
@@ -242,7 +317,8 @@ def search_students(
     return results
 
 
-
+# get one student id
+# keep this after /search so we do not treat search as a student id
 @router.get("/{student_id}", response_model=StudentResponse)
 def get_student(
     student_id: int,
@@ -257,7 +333,8 @@ def get_student(
     return student
 
 
-
+# Update a students details
+# this is admin only because these fields affect the students stored profile
 @router.put("/{student_id}", response_model=StudentResponse)
 def update_student(
     student_id: int,
@@ -277,6 +354,8 @@ def update_student(
     return student
 
 
+# Delete a student record
+# Related rows are handled by the database cascade rules
 @router.delete("/{student_id}")
 def delete_student(
     student_id: int,
@@ -292,6 +371,7 @@ def delete_student(
     return {"message": "Student deleted"}
 
 
+# Returns everything needed for the student profile page to avoid making seperate predictions for everything
 @router.get("/{student_id}/profile", response_model=StudentProfileResponse)
 def get_student_profile(
     student_id: int,

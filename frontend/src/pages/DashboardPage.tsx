@@ -4,6 +4,8 @@ import { Card } from '../components/ui/Card'
 import { Stat } from '../components/ui/Stat'
 import { useDataset } from '../context/DatasetContext'
 
+// Main page , dashboard for all staff
+
 type DashboardSummary = {
   total_students: number
   total_predictions: number
@@ -41,6 +43,7 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Load the available datasets when the dashboard opens and pick the default
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -48,8 +51,6 @@ export function DashboardPage() {
         const dsRes = await api.get<Dataset[]>('/datasets/')
         if (!cancelled) setDatasets(dsRes.data)
 
-        // If you already picked a dataset earlier, keep it.
-        // Only pick a default if we have nothing selected yet (or the selected one no longer exists).
         if (!cancelled && dsRes.data.length) {
           const exists = datasetId != null && dsRes.data.some((d) => d.dataset_id === datasetId)
           if (!exists) setDatasetId(dsRes.data[0].dataset_id)
@@ -65,6 +66,7 @@ export function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Load dashboard data whenever the selected dataset changes
   useEffect(() => {
     if (datasetId == null) return
     let cancelled = false
@@ -198,6 +200,7 @@ export function DashboardPage() {
 
 function RiskBars({ dist }: { dist: RiskDistribution }) {
   const total = (dist.High ?? 0) + (dist.Medium ?? 0) + (dist.Low ?? 0)
+  // Percentages are share of labeled predictions, not raw student counts.
   const pct = (n: number) => (total > 0 ? Math.round((n / total) * 100) : 0)
 
   return (

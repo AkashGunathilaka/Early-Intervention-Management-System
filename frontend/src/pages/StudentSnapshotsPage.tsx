@@ -1,36 +1,32 @@
 import { useEffect, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { Card } from '../components/ui/Card'
+import { fmt } from '../lib/format'
+import type { FeatureSnapshotRow } from '../types/featureSnapshot'
 
-type Snapshot = {
-  feature_id: number
-  student_id: number
-  days_from_start: number
-  total_clicks: number
-  avg_clicks: number
-  vle_records: number
-  avg_score: number
-  total_score: number
-  assessment_count: number
-  avg_weight: number
-  at_risk_label: number | null
-}
+// Shows all saved feature snapshots for a single student
+// the profile page only shows a small preview so this gives the full history
 
-function fmt(n: any, digits = 2) {
-  const num = Number(n)
-  if (!Number.isFinite(num)) return '-'
-  return num.toFixed(digits)
+// this value only exists when the snapshot was created from imported training data
+function formatAtRiskLabel(v: unknown): string {
+  if (v === null || v === undefined) return '—'
+  if (typeof v === 'string' && v.trim() === '') return '—'
+  const n = Number(v)
+  if (!Number.isFinite(n)) return '—'
+  return String(n)
 }
 
 export function StudentSnapshotsPage() {
   const { id } = useParams()
   const studentId = Number(id)
 
-  const [rows, setRows] = useState<Snapshot[]>([])
+  const [rows, setRows] = useState<FeatureSnapshotRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+ // reload the snapshots whenever the student changes
   useEffect(() => {
     if (!Number.isFinite(studentId)) {
       setError('Invalid student id')
@@ -43,7 +39,7 @@ export function StudentSnapshotsPage() {
       try {
         setLoading(true)
         setError(null)
-        const res = await api.get<Snapshot[]>(`/feature-snapshots/student/${studentId}`)
+        const res = await api.get<FeatureSnapshotRow[]>(`/feature-snapshots/student/${studentId}`)
         if (!cancelled) setRows(res.data)
       } catch (err: any) {
         if (!cancelled) setError(err?.response?.data?.detail ?? 'Failed to load feature snapshot history')
@@ -56,6 +52,20 @@ export function StudentSnapshotsPage() {
       cancelled = true
     }
   }, [studentId])
+
+  const cellStyle: CSSProperties = {
+    padding: '4px 8px',
+    fontSize: 12,
+    whiteSpace: 'nowrap',
+    verticalAlign: 'middle',
+  }
+
+  const thStyle: CSSProperties = {
+    ...cellStyle,
+    fontWeight: 600,
+    borderBottom: '1px solid var(--border)',
+    textAlign: 'left',
+  }
 
   return (
     <div className="page">
@@ -78,42 +88,75 @@ export function StudentSnapshotsPage() {
 
       <div style={{ marginTop: 16 }}>
         <Card title={`Snapshots for student_id=${studentId}`}>
+          <p className="muted" style={{ fontSize: 12, margin: '0 0 10px', lineHeight: 1.45 }}>
+            <strong>at_risk_label</strong> is only stored when the snapshot came from imported training data (CSV column{' '}
+            <code style={{ fontSize: 11 }}>at_risk_label</code>). Snapshots created from the student profile leave it unset
+            (shown as —).
+          </p>
           {rows.length ? (
-            <table width="100%" cellPadding={8} style={{ borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border)' }}>
-                  <th>feature_id</th>
-                  <th>days</th>
-                  <th>total_clicks</th>
-                  <th>avg_clicks</th>
-                  <th>vle_records</th>
-                  <th>avg_score</th>
-                  <th>total_score</th>
-                  <th>assessments</th>
-                  <th>avg_weight</th>
-                  <th>at_risk_label</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows
-                  .slice()
-                  .sort((a, b) => (a.feature_id < b.feature_id ? 1 : -1))
-                  .map((s) => (
-                    <tr key={s.feature_id} style={{ borderBottom: '1px solid var(--border)' }}>
-                      <td>{s.feature_id}</td>
-                      <td>{s.days_from_start}</td>
-                      <td>{fmt(s.total_clicks, 0)}</td>
-                      <td>{fmt(s.avg_clicks, 2)}</td>
-                      <td>{s.vle_records}</td>
-                      <td>{fmt(s.avg_score, 2)}</td>
-                      <td>{fmt(s.total_score, 2)}</td>
-                      <td>{s.assessment_count}</td>
-                      <td>{fmt(s.avg_weight, 2)}</td>
-                      <td>{s.at_risk_label ?? '-'}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
+            <div
+              style={{
+                overflowX: 'auto',
+                maxWidth: '100%',
+                borderRadius: 6,
+                border: '1px solid var(--border)',
+              }}
+            >
+              <table style={{ borderCollapse: 'collapse', width: 'max-content', minWidth: 0 }}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>feature_id</th>
+                    <th style={thStyle}>days</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>total_clicks</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>avg_clicks</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>vle_records</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>avg_score</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>total_score</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>assessments</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>avg_weight</th>
+                    <th
+                      style={thStyle}
+                      title="0 = low risk, 1 = at risk in training data; empty when not provided"
+                    >
+                      at_risk
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows
+                    .slice()
+                    .sort((a, b) => (a.feature_id < b.feature_id ? 1 : -1))
+                    .map((s) => (
+                      <tr key={s.feature_id} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ ...cellStyle, fontFamily: 'ui-monospace, monospace' }}>{s.feature_id}</td>
+                        <td style={cellStyle}>{s.days_from_start ?? '—'}</td>
+                        <td style={{ ...cellStyle, textAlign: 'right', fontFamily: 'ui-monospace, monospace' }}>
+                          {fmt(s.total_clicks, 0)}
+                        </td>
+                        <td style={{ ...cellStyle, textAlign: 'right', fontFamily: 'ui-monospace, monospace' }}>
+                          {fmt(s.avg_clicks, 2)}
+                        </td>
+                        <td style={{ ...cellStyle, textAlign: 'right', fontFamily: 'ui-monospace, monospace' }}>
+                          {s.vle_records}
+                        </td>
+                        <td style={{ ...cellStyle, textAlign: 'right', fontFamily: 'ui-monospace, monospace' }}>
+                          {fmt(s.avg_score, 2)}
+                        </td>
+                        <td style={{ ...cellStyle, textAlign: 'right', fontFamily: 'ui-monospace, monospace' }}>
+                          {fmt(s.total_score, 2)}
+                        </td>
+                        <td style={{ ...cellStyle, textAlign: 'right', fontFamily: 'ui-monospace, monospace' }}>
+                          {s.assessment_count}
+                        </td>
+                        <td style={{ ...cellStyle, textAlign: 'right', fontFamily: 'ui-monospace, monospace' }}>
+                          {fmt(s.avg_weight, 2)}
+                        </td>
+                        <td style={{ ...cellStyle, fontFamily: 'ui-monospace, monospace' }}>{formatAtRiskLabel(s.at_risk_label)}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <p className="muted">No feature snapshots for this student.</p>
           )}
@@ -122,4 +165,3 @@ export function StudentSnapshotsPage() {
     </div>
   )
 }
-

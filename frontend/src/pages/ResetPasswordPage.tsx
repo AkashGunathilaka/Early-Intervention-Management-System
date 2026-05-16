@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { Card } from '../components/ui/Card'
 
+// Public password reset page 
+// the user requests a reset token, then uses it to set a new password 
+
 type ResetRequestResponse =
   | { message: string; reset_token?: string; expires_minutes?: number }
   | { detail: string }
@@ -17,6 +20,7 @@ export function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
+
   async function onRequestToken(e: FormEvent) {
     e.preventDefault()
     setError(null)
@@ -30,7 +34,10 @@ export function ResetPasswordPage() {
     try {
       const res = await api.post<ResetRequestResponse>('/auth/request-password-reset', { email })
       const anyRes: any = res.data
+
       setMessage(anyRes?.message ?? 'Request sent')
+
+      // the API returns the token directly for easier testing
       if (anyRes?.reset_token) setToken(anyRes.reset_token)
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? 'Failed to request reset token')
@@ -39,6 +46,7 @@ export function ResetPasswordPage() {
     }
   }
 
+ 
   async function onResetPassword(e: FormEvent) {
     e.preventDefault()
     setError(null)
@@ -70,7 +78,7 @@ export function ResetPasswordPage() {
       {message ? <p className="success">{message}</p> : null}
 
       <div style={{ display: 'grid', gap: 12 }}>
-        <Card title="1) Generate a reset token (prototype)">
+        <Card title="1) Generate a reset token">
           <form onSubmit={onRequestToken} style={{ display: 'grid', gap: 12, maxWidth: 520 }}>
             <label style={{ display: 'grid', gap: 6 }}>
               Email
@@ -80,7 +88,7 @@ export function ResetPasswordPage() {
               {requesting ? 'Generating…' : 'Generate reset token'}
             </button>
             <p className="muted" style={{ margin: 0 }}>
-              This project prototype returns the token directly instead of sending an email.
+              A reset token will be generated for this account.
             </p>
           </form>
         </Card>

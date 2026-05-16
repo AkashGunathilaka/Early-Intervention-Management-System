@@ -4,6 +4,9 @@ import { api } from '../lib/api'
 import { Card } from '../components/ui/Card'
 import { RiskBadge, type RiskLevel } from '../components/ui/RiskBadge'
 
+// Shows the prediction history for a student
+// simpler view than the full student profile page
+
 type Prediction = {
   prediction_id: number
   student_id: number
@@ -25,6 +28,7 @@ export function StudentPredictionsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Load predictions for the student in the URL
   useEffect(() => {
     if (!Number.isFinite(studentId)) {
       setError('Invalid student id')

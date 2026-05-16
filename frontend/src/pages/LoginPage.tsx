@@ -5,6 +5,9 @@ import { setToken } from '../lib/auth'
 import { useAuth } from '../context/AuthContext'
 import { Link } from 'react-router-dom'
 
+// Public login page 
+// after login the token saved and the user is sent to the dashboard or their previous page
+
 type LoginResponse = { access_token: string; token_type: string }
 
 export function LoginPage() {
@@ -16,12 +19,16 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  // OAuth2 login expects the email in the username field
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
+    if (!email.trim() || !password) {
+      setError('Please enter both email and password.')
+      return
+    }
     setLoading(true)
     try {
-      // FastAPI OAuth2PasswordRequestForm expects x-www-form-urlencoded
       const body = new URLSearchParams()
       body.set('username', email)
       body.set('password', password)
@@ -35,13 +42,20 @@ export function LoginPage() {
       try {
         await refreshMe()
       } catch {
-        // ignore; route guard will handle if token invalid
+        // If this fails, route guards will handle the bad session
       }
 
       const from = (loc.state as any)?.from
       nav(typeof from === 'string' && from ? from : '/dashboard')
     } catch (err: any) {
-      setError(err?.response?.data?.detail ?? 'Login failed')
+      const detail = err?.response?.data?.detail
+      if (Array.isArray(detail)) {
+        setError(detail.map((d: any) => d?.msg ?? String(d)).join(', '))
+      } else if (typeof detail === 'string') {
+        setError(detail)
+      } else {
+        setError('Login failed')
+      }
     } finally {
       setLoading(false)
     }
@@ -72,7 +86,7 @@ export function LoginPage() {
             <Link to="/reset-password" className="muted" style={{ fontSize: 13 }}>
               Forgot password?
             </Link>
-            <Link to="/change-password" className="muted" style={{ fontSize: 13 }}>
+            <Link to="/users" className="muted" style={{ fontSize: 13 }}>
               Change password
             </Link>
           </div>

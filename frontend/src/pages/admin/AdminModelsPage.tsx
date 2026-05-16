@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react'
 import { api } from '../../lib/api'
 import { Card } from '../../components/ui/Card'
 import { Stat } from '../../components/ui/Stat'
+import { fmt } from '../../lib/format'
+
+// Admin page for managing trained models
+// Shows the active model, its metrics, and all models in the database
 
 type ModelRecord = {
   model_id: number
@@ -32,12 +36,7 @@ export function AdminModelsPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [deleteArtifacts, setDeleteArtifacts] = useState(true)
 
-  const [masterDatasetId, setMasterDatasetId] = useState('')
-  const [masterModelName, setMasterModelName] = useState('Master XGBoost Model')
-  const [masterAlgorithm, setMasterAlgorithm] = useState('XGBoost')
-  const [masterSetActive, setMasterSetActive] = useState(true)
-  const [masterizing, setMasterizing] = useState(false)
-
+  // Fetches the active model records and the active models metrics
   async function loadAll(cancelledRef?: { cancelled: boolean }) {
     try {
       setLoading(true)
@@ -65,6 +64,7 @@ export function AdminModelsPage() {
     }
   }
 
+  // Activate a model and relaod the file 
   async function activate(modelId: number) {
     setActivatingId(modelId)
     setError(null)
@@ -78,30 +78,7 @@ export function AdminModelsPage() {
     }
   }
 
-  async function masterizeFromNotebook() {
-    setError(null)
-    const dsId = Number(masterDatasetId)
-    if (!Number.isFinite(dsId)) {
-      setError('Please enter a valid dataset_id for the master model.')
-      return
-    }
-
-    setMasterizing(true)
-    try {
-      await api.post('/admin/models/masterize-from-notebook', {
-        dataset_id: dsId,
-        model_name: masterModelName.trim() || 'Master XGBoost Model',
-        algorithm: masterAlgorithm.trim() || 'XGBoost',
-        set_active: masterSetActive,
-      })
-      await loadAll()
-    } catch (err: any) {
-      setError(err?.response?.data?.detail ?? 'Failed to masterize from notebook')
-    } finally {
-      setMasterizing(false)
-    }
-  }
-
+  // delete a model record (cannot delete master or active model)
   async function deleteModel(modelId: number) {
     const ok = window.confirm(`Delete model_id=${modelId}? This cannot be undone.`)
     if (!ok) return
@@ -118,6 +95,7 @@ export function AdminModelsPage() {
     }
   }
 
+// load the model when the page opens 
   useEffect(() => {
     const ref = { cancelled: false }
     loadAll(ref)
@@ -152,41 +130,6 @@ export function AdminModelsPage() {
 
           <Card title="Evaluation metrics">
             {metrics ? <MetricsView metrics={metrics} /> : <p className="muted">No metrics.json found for this model.</p>}
-          </Card>
-
-          <Card title="Master model (lock + refresh from notebook export)">
-            <div style={{ display: 'grid', gap: 10 }}>
-              <div className="muted" style={{ fontSize: 12 }}>
-                Uses backend endpoint that copies `model/final_xgb_model.pkl` + `model/final_feature_columns.pkl` into `model/master/` and registers/updates the locked
-                `version=master` record.
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <label style={{ display: 'grid', gap: 6 }}>
-                  dataset_id
-                  <input value={masterDatasetId} onChange={(e) => setMasterDatasetId(e.target.value)} placeholder="e.g. 1" />
-                </label>
-                <label style={{ display: 'grid', gap: 6 }}>
-                  model_name
-                  <input value={masterModelName} onChange={(e) => setMasterModelName(e.target.value)} />
-                </label>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, alignItems: 'end' }}>
-                <label style={{ display: 'grid', gap: 6 }}>
-                  algorithm
-                  <input value={masterAlgorithm} onChange={(e) => setMasterAlgorithm(e.target.value)} />
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <input type="checkbox" checked={masterSetActive} onChange={(e) => setMasterSetActive(e.target.checked)} />
-                  Set master as active
-                </label>
-              </div>
-
-              <button onClick={masterizeFromNotebook} disabled={masterizing}>
-                {masterizing ? 'Masterizing…' : 'Masterize from notebook export'}
-              </button>
-            </div>
           </Card>
 
           <Card title="All models (switch active)">
@@ -259,27 +202,22 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
   )
 }
 
-function fmt(n: any, digits = 3): string {
-  const num = Number(n)
-  if (!Number.isFinite(num)) return '-'
-  return num.toFixed(digits)
-}
-
+// Shows the saved training metrics for the model
 function MetricsView({ metrics }: { metrics: MetricsFile }) {
   const split = metrics?.split ?? null
 
   return (
     <div style={{ display: 'grid', gap: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-        <Stat label="Accuracy" value={fmt(metrics.accuracy)} />
-        <Stat label="Precision" value={fmt(metrics.precision)} />
-        <Stat label="Recall" value={fmt(metrics.recall)} />
+        <Stat label="Accuracy" value={fmt(metrics.accuracy, 3)} />
+        <Stat label="Precision" value={fmt(metrics.precision, 3)} />
+        <Stat label="Recall" value={fmt(metrics.recall, 3)} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-        <Stat label="F1" value={fmt(metrics.f1_score)} />
-        <Stat label="ROC-AUC" value={fmt(metrics.roc_auc)} />
-        <Stat label="PR-AUC" value={fmt(metrics.pr_auc)} />
+        <Stat label="F1" value={fmt(metrics.f1_score, 3)} />
+        <Stat label="ROC-AUC" value={fmt(metrics.roc_auc, 3)} />
+        <Stat label="PR-AUC" value={fmt(metrics.pr_auc, 3)} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>

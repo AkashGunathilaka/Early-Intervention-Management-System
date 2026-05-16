@@ -1,3 +1,9 @@
+"""
+Model record response schema
+
+used by the admin pages to show trained models , their metrics and which model is currently active
+"""
+
 from pydantic import BaseModel
 
 

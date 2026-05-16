@@ -6,6 +6,9 @@ import { useDataset } from '../context/DatasetContext'
 
 import { RiskBadge, type RiskLevel } from '../components/ui/RiskBadge'
 
+// Student search page 
+// admins can create datasets, regenerate predictions and add demo students 
+
 type Prediction = {
   risk_level: RiskLevel
   risk_score: number
@@ -53,6 +56,7 @@ type CreateWithFeaturesResponse = {
   student: { student_id: number }
   feature_snapshot: { feature_id: number }
   prediction: { prediction_id: number } | null
+  prediction_error?: string | null
 }
 
 type Dataset = {
@@ -60,6 +64,25 @@ type Dataset = {
   dataset_name: string
   source_type: string
   status: string
+}
+
+// FastAPI can send validation errors in a few different shapes
+// this turns them into one message gthat is easier to show in the UI 
+function getApiErrorMessage(err: any, fallback: string) {
+  const data = err?.response?.data
+  const detail = data?.detail
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        const path = Array.isArray(item?.loc) ? item.loc.join('.') : ''
+        return path ? `${path}: ${item?.msg}` : item?.msg
+      })
+      .filter(Boolean)
+      .join('; ')
+  }
+  if (typeof data === 'string' && data.trim()) return data
+  return fallback
 }
 
 export function StudentsPage() {
@@ -83,7 +106,7 @@ export function StudentsPage() {
   const [createMessage, setCreateMessage] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
 
-  // Manual student creation form (admin-only) to quickly exercise end-to-end flows
+  // Default values for the create student form 
   const [cCodeModule, setCCodeModule] = useState('AAA')
   const [cCodePresentation, setCCodePresentation] = useState('2014J')
   const [cGender, setCGender] = useState('M')
@@ -106,12 +129,12 @@ export function StudentsPage() {
   const [fAtRiskLabel, setFAtRiskLabel] = useState<number | null>(null)
   const [fAutoPredict, setFAutoPredict] = useState(true)
 
+  // load the available datasets and set the default dataset
   async function loadDatasets(): Promise<number | null> {
     setLoadingDatasets(true)
     try {
       const res = await api.get<Dataset[]>('/datasets/')
       setDatasets(res.data)
-      // Keep your selection if it exists; otherwise pick the first dataset once.
       if (res.data.length) {
         const exists = datasetId != null && res.data.some((d) => d.dataset_id === datasetId)
         if (!exists) {
@@ -122,7 +145,7 @@ export function StudentsPage() {
       }
       return datasetId
     } catch {
-      // ignore; students page can still work with manual id
+      // the page can still run if the user types a dataset id manually
       setDatasets([])
       return datasetId
     } finally {
@@ -130,6 +153,7 @@ export function StudentsPage() {
     }
   }
 
+  // Creates a new dataset and make it the active one straightaway
   async function createDataset() {
     if (!newDatasetName.trim()) {
       setError('Please enter a dataset name')
@@ -150,6 +174,7 @@ export function StudentsPage() {
     }
   }
 
+  // Search uses an optional dataset id so it can run immediately after the dataset is changed
   async function runSearch(nextDatasetId?: number) {
     const dsid = Number.isFinite(nextDatasetId as number) ? (nextDatasetId as number) : datasetId
     if (dsid == null) {
@@ -175,6 +200,7 @@ export function StudentsPage() {
     }
   }
 
+  // Regenerate predictions for the selected dataset, then refresh
   async function bulkRegenerateForDataset() {
     if (datasetId == null) return
     setBulkGenerating(true)
@@ -194,10 +220,17 @@ export function StudentsPage() {
     }
   }
 
+  // create a manual student with a feature snapshot then open the new profile
   async function createStudentDemo() {
     setCreating(true)
     setError(null)
     setCreateMessage(null)
+
+    if (datasetId == null) {
+      setError('Select a dataset first (dataset_id is required).')
+      setCreating(false)
+      return
+    }
 
     const payload: CreateWithFeaturesPayload = {
       student: {
@@ -225,7 +258,7 @@ export function StudentsPage() {
       generate_prediction: fAutoPredict,
     }
 
-    // basic validation for required student strings
+    // required text fields cannot be blank
     const requiredStrings = [
       payload.student.code_module,
       payload.student.code_presentation,
@@ -245,16 +278,22 @@ export function StudentsPage() {
     try {
       const res = await api.post<CreateWithFeaturesResponse>('/students/create-with-features', payload)
       const sid = res.data.student.student_id
-      setCreateMessage(`Created student_id=${sid}${res.data.prediction ? ' (prediction generated)' : ''}`)
+      const predictionStatus = res.data.prediction
+        ? ' (prediction generated)'
+        : res.data.prediction_error
+          ? ` (prediction not generated: ${res.data.prediction_error})`
+          : ''
+      setCreateMessage(`Created student_id=${sid}${predictionStatus}`)
       await runSearch()
       nav(`/students/${sid}`)
     } catch (err: any) {
-      setError(err?.response?.data?.detail ?? 'Failed to create student')
+      setError(getApiErrorMessage(err, 'Failed to create student'))
     } finally {
       setCreating(false)
     }
   }
 
+  // initial load for datasets and the first table search
   useEffect(() => {
     ;(async () => {
       const dsid = await loadDatasets()
@@ -385,7 +424,14 @@ export function StudentsPage() {
                   <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
                     <label style={{ display: 'grid', gap: 6 }}>
                       Dataset ID
-                      <input type="number" value={datasetId} onChange={(e) => setDatasetId(Number(e.target.value))} />
+                      <input
+                        type="number"
+                        value={datasetId ?? ''}
+                        onChange={(e) => {
+                          const raw = e.target.value
+                          setDatasetId(raw === '' ? null : Number(raw))
+                        }}
+                      />
                     </label>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                       <label style={{ display: 'grid', gap: 6 }}>

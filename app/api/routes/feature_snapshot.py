@@ -1,3 +1,9 @@
+"""
+Feature snapshot CRUD each row is a view of a students behavior at a specific time
+
+These rows are used by the predictor. We check the student exists so features are never left without a student.
+"""
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -14,6 +20,8 @@ from app.schemas.feature_snapshot import (
 router = APIRouter(prefix="/feature-snapshots", tags=["Feature Snapshots"])
 
 
+# Creates a new feature snapshot, but first checks that the student exists.
+# This prevents saving data for a student not on the system
 @router.post("/", response_model=FeatureSnapshotResponse)
 def create_feature_snapshot(
     feature_snapshot: FeatureSnapshotCreate,
@@ -49,6 +57,7 @@ def create_feature_snapshot(
     return new_feature_snapshot
 
 
+# Returns all feature snapshots in the system
 @router.get("/", response_model=list[FeatureSnapshotResponse])
 def get_feature_snapshots(
     db: Session = Depends(get_db),
@@ -57,6 +66,7 @@ def get_feature_snapshots(
     return db.query(FeatureSnapshot).all()
 
 
+# Gets one feature snapshot by its ID
 @router.get("/{feature_id}", response_model=FeatureSnapshotResponse)
 def get_feature_snapshot(
     feature_id: int,
@@ -71,10 +81,10 @@ def get_feature_snapshot(
 
     if feature_snapshot is None:
         raise HTTPException(status_code=404, detail="Feature snapshot not found")
-
     return feature_snapshot
 
 
+# Gets all feature snapshots for a student with their student ID
 @router.get("/student/{student_id}", response_model=list[FeatureSnapshotResponse])
 def get_feature_snapshots_for_student(
     student_id: int,

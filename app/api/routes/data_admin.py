@@ -1,35 +1,25 @@
-from pathlib import Path
 
+"""
+Admin data import routes
+
+this file handles importing OULAD style CSV data into the system.
+"""
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import require_admin
+from app.api.upload_paths import resolve_under_uploads
 from app.db.database import get_db
+from app.db.sequences import reset_sequence
 from app.models.feature_snapshot import FeatureSnapshot
 from app.models.student import Student
 from app.models.user import User
 
 router = APIRouter(prefix="/admin/data", tags=["Admin - Data"])
 
-UPLOAD_DIR = Path("uploads")
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-
-def _resolve_under_uploads(raw_path: str) -> Path:
-    base = UPLOAD_DIR.resolve()
-    p = Path(raw_path).expanduser()
-    if not p.is_absolute():
-        # Accept both "file.csv" and "uploads/file.csv" without double-prefixing
-        if p.parts and p.parts[0] == UPLOAD_DIR.name:
-            p = Path(*p.parts[1:])
-        p = UPLOAD_DIR / p
-    resolved = p.resolve()
-    if base != resolved and base not in resolved.parents:
-        raise HTTPException(status_code=400, detail="Path must be inside the uploads directory")
-    return resolved
-
-
+# Converts the given CSV path into a safe path inside the uploads folder preventing users from importing files outside the allowed directory
 @router.post("/import-oulad")
 def import_students_from_csv(
     dataset_id: int,
@@ -39,30 +29,13 @@ def import_students_from_csv(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """
-    Bulk import Students + FeatureSnapshots from a single CSV that matches your app column names.
-
-    Expected CSV columns:
-
-    Student columns (required):
-    - code_module, code_presentation, gender, region, highest_education, imd_band, age_band,
-      num_of_prev_attempts, studied_credits, disability
-
-    Feature snapshot columns (required):
-    - days_from_start, total_clicks, avg_clicks, vle_records, avg_score, total_score,
-      assessment_count, avg_weight
-
-    Optional:
-    - student_id (if provided and upsert_students=True, we update/insert by that id)
-    - at_risk_label
-    """
-
-    csv_file = _resolve_under_uploads(csv_path)
+    #import route for loading prepared OULAD style data into the database. It creates/updates students, adds featuresnashots and can generate the predictions
+    csv_file = resolve_under_uploads(csv_path)
     if not csv_file.exists():
         raise HTTPException(status_code=404, detail=f"Missing file: {csv_file}")
-
+#Read the CSV into a dataframe so each row can be imported
     df = pd.read_csv(csv_file)
-
+# these are the columns needed to create or update student records
     required_student_cols = [
         "code_module",
         "code_presentation",
@@ -75,6 +48,7 @@ def import_students_from_csv(
         "studied_credits",
         "disability",
     ]
+#these are the columns needed to create the feature snapshot used by the model
     required_snapshot_cols = [
         "days_from_start",
         "total_clicks",
@@ -85,18 +59,20 @@ def import_students_from_csv(
         "assessment_count",
         "avg_weight",
     ]
+    #check the structure before importing
     missing_cols = [c for c in (required_student_cols + required_snapshot_cols) if c not in df.columns]
     if missing_cols:
         raise HTTPException(status_code=400, detail=f"CSV missing columns: {missing_cols}")
-
+#counters to report what the import created
     created_students = 0
     created_snapshots = 0
     created_predictions = 0
-
-    from app.services.prediction_service import predict_for_student  # local import
-
+# we import the prediction function only when this route is used
+    from app.services.prediction_service import predict_for_student
+# process each CSV row as one student record and one feature snapshot
     for _, row in df.iterrows():
         sid = None
+        # try to use the original student id from the csv if provided
         if "student_id" in df.columns and pd.notna(row.get("student_id")):
             try:
                 sid = int(row.get("student_id"))
@@ -126,8 +102,8 @@ def import_students_from_csv(
             db.add(student)
             db.flush()
             created_students += 1
+        # if the student already exists we can update their details when upsert is enabled
         elif upsert_students:
-            # Update demographic fields if a student_id row already exists
             student.dataset_id = dataset_id
             student.code_module = str(row.get("code_module"))
             student.code_presentation = str(row.get("code_presentation"))
@@ -155,15 +131,27 @@ def import_students_from_csv(
         db.add(snapshot)
         created_snapshots += 1
 
-        db.flush()  # ensure snapshot exists before prediction lookup
+        # Flush so the new student and snapshot are visible before the prediction runs
+        db.flush()
 
         if generate_predictions:
-            # Skip explanations during bulk import to keep ingestion fast; per-student regeneration
-            # can populate explainability fields later.
+            # we can optionally generate a prediction immediately after importing the snapshot
             pred = predict_for_student(student_id=student.student_id, db=db, explain=False)
             if pred:
                 created_predictions += 1
+    # save the full import after all rows have been processed
+    db.commit()
 
+    # Do not fail the whole import if sequence reset fails after the data was saved
+    for table, pk in (
+        ("students", "student_id"),
+        ("feature_snapshots", "feature_id"),
+        ("predictions", "prediction_id"),
+    ):
+        try:
+            reset_sequence(db, table, pk)
+        except Exception:
+            pass
     db.commit()
 
     return {

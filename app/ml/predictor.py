@@ -1,3 +1,7 @@
+
+#Prediction helper functions
+
+
 import pickle
 from pathlib import Path
 from functools import lru_cache
@@ -15,6 +19,7 @@ FEATURE_COLUMNS_PATH = MODEL_DIR / "final_feature_columns.pkl"
 
 @lru_cache(maxsize=1)
 def load_model():
+    #load the defauly model from disk , the result is cached to prevent reloads
     if not MODEL_PATH.exists():
         raise FileNotFoundError(f"Model file not found at {MODEL_PATH}")
     with open(MODEL_PATH, "rb") as f:
@@ -23,6 +28,7 @@ def load_model():
 
 @lru_cache(maxsize=1)
 def load_feature_columns():
+    #Load the feature column order , the column order must match the order used during training
     if not FEATURE_COLUMNS_PATH.exists():
         raise FileNotFoundError(f"Feature columns file not found at {FEATURE_COLUMNS_PATH}")
     with open(FEATURE_COLUMNS_PATH, "rb") as f:
@@ -30,6 +36,7 @@ def load_feature_columns():
 
 
 def load_model_from_path(model_path: str):
+    #load a model from a given file path
     path = Path(model_path)
     if not path.is_absolute():
         path = BASE_DIR / path
@@ -40,6 +47,7 @@ def load_model_from_path(model_path: str):
 
 
 def load_feature_columns_from_path(feature_columns_path: str):
+    # load the feature columns for a specific model
     path = Path(feature_columns_path)
     if not path.is_absolute():
         path = BASE_DIR / path
@@ -50,6 +58,7 @@ def load_feature_columns_from_path(feature_columns_path: str):
 
 
 def get_risk_level(risk_score: float) -> str:
+    # convert a risk socre into a risk level
     if risk_score >= 0.7:
         return "High"
     if risk_score >= 0.4:
@@ -58,6 +67,8 @@ def get_risk_level(risk_score: float) -> str:
 
 
 def build_feature_dataframe(feature_snapshot, feature_columns) -> pd.DataFrame:
+    # Convert a feature snapshot into a dataframe format expected by the model
+    # any missing columns are filled with 0
     data = {
         "total_clicks": feature_snapshot.total_clicks,
         "avg_clicks": feature_snapshot.avg_clicks,
@@ -70,14 +81,17 @@ def build_feature_dataframe(feature_snapshot, feature_columns) -> pd.DataFrame:
 
     df = pd.DataFrame([data])
 
+    # add any columns the model expects but this snapshot does not contain
     for col in feature_columns:
         if col not in df.columns:
             df[col] = 0
+
 
     return df[feature_columns]
 
 
 def generate_prediction(feature_snapshot, model_path: str | None = None, feature_columns_path: str | None = None):
+    # run a prediction for one feature snapshot
     model = load_model_from_path(model_path) if model_path else load_model()
     feature_columns = (
         load_feature_columns_from_path(feature_columns_path)
@@ -87,6 +101,7 @@ def generate_prediction(feature_snapshot, model_path: str | None = None, feature
 
     df = build_feature_dataframe(feature_snapshot, feature_columns)
 
+    # for this binary model, class 1 is treated as the at-risk class
     probs = model.predict_proba(df)[0]
     risk_score = float(probs[1])
     predicted_label = int(model.predict(df)[0])
@@ -96,14 +111,18 @@ def generate_prediction(feature_snapshot, model_path: str | None = None, feature
     top_factors = _explain_top_factors(model=model, df=df, cache_key=_get_model_cache_key(model_path))
 
     return {
-    "risk_score": risk_score,
-    "predicted_label": predicted_label,
-    "risk_level": risk_level,
-    "confidence_score": confidence_score,
-    "top_factors": top_factors,
+        "risk_score": risk_score,
+        "predicted_label": predicted_label,
+        "risk_level": risk_level,
+        "confidence_score": confidence_score,
+        "top_factors": top_factors,
     }
 
+
+
+
 def clear_model_cache() -> None:
+    # clear the cached model and feature columns
     load_model.cache_clear()
     load_feature_columns.cache_clear()
 
@@ -112,8 +131,7 @@ _EXPLAINER_CACHE: dict[str, object] = {}
 
 
 def _get_model_cache_key(model_path: str | None) -> str:
-    # Keyed by artifact path so we don't mix explainers across models.
-    # If no model_path provided, fall back to the default MODEL_PATH.
+    # build a cache key for the model being explained
     p = Path(model_path) if model_path else MODEL_PATH
     if not p.is_absolute():
         p = BASE_DIR / p
@@ -121,18 +139,12 @@ def _get_model_cache_key(model_path: str | None) -> str:
 
 
 def _explain_top_factors(model, df: pd.DataFrame, cache_key: str) -> str:
-    """
-    Compute per-row top factors.
-
-    Preferred: SHAP TreeExplainer values (per-student local attribution).
-    Fallback: global feature_importances_ weighted by |value| (less accurate).
-    """
-    # 1) Try SHAP (best)
+    # create a short explanation of the strongest features for this prediction
+    #SHAP is used when available, if not , the function falls back to the models feature importance values
     try:
         import shap  # heavy import; only used when needed
 
-        # Cache the explainer by model artifact path to keep repeated calls fast.
-        # (Bulk dataset regenerate can still be heavy if enabled; we generally avoid SHAP there.)
+        #Reusse the SHAP explainer for the same model instead of rebuilding it each time
         explainer = _EXPLAINER_CACHE.get(cache_key)
         if explainer is None:
             explainer = shap.TreeExplainer(model)
@@ -143,14 +155,12 @@ def _explain_top_factors(model, df: pd.DataFrame, cache_key: str) -> str:
         if values is None:
             raise RuntimeError("SHAP explanation missing values")
 
-        # Binary classifiers sometimes return list-like shap arrays; handle both.
+        # Different SHAP versions retruns slightly different shapes, so normalize them
         if isinstance(values, list):
-            # choose positive class if available, else first
             vals = np.asarray(values[1] if len(values) > 1 else values[0])
         else:
             vals = np.asarray(values)
 
-        # Expected shape: (1, n_features)
         row_vals = vals[0]
         abs_vals = np.abs(row_vals)
         if not np.any(abs_vals):
@@ -166,14 +176,14 @@ def _explain_top_factors(model, df: pd.DataFrame, cache_key: str) -> str:
             feat_val = float(row_values[name])
             if shap_val <= 0:
                 continue
-            # Keep frontend parsing stable: "importance=" is now |SHAP value|.
             parts.append(f"{name} (value={feat_val:.2f}, importance={shap_val:.4f})")
 
         return "; ".join(parts) if parts else "No non-zero SHAP contributions found"
     except Exception:
+        # if SHAP fails, still return a simpler explanation instead of failing
         pass
 
-    # 2) Fallback: feature_importances_ (global) * |value|
+
     if hasattr(model, "feature_importances_"):
         try:
             importances = model.feature_importances_

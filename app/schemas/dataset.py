@@ -1,3 +1,9 @@
+"""
+Dataset schemas 
+
+used to validate data sent to and received from the dataset endpoints
+"""
+
 from datetime import datetime
 
 from pydantic import BaseModel
