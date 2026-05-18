@@ -1,14 +1,25 @@
 import { type FormEvent, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { api, setAuthToken } from '../lib/api'
 import { setToken } from '../lib/auth'
 import { useAuth } from '../context/AuthContext'
-import { Link } from 'react-router-dom'
-
-// Public login page 
-// after login the token saved and the user is sent to the dashboard or their previous page
 
 type LoginResponse = { access_token: string; token_type: string }
+
+const HIGHLIGHTS = [
+  {
+    title: 'Early risk detection',
+    text: 'Spot students who may need support early.',
+  },
+  {
+    title: 'Actionable profiles',
+    text: 'Review risk levels, feature snapshots, prediction history, and intervention plans in one place.',
+  },
+  {
+    title: 'Built For Educators',
+    text: 'Monitor your cohorts with ease.',
+  },
+] as const
 
 export function LoginPage() {
   const nav = useNavigate()
@@ -19,7 +30,6 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  // OAuth2 login expects the email in the username field
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
@@ -42,19 +52,19 @@ export function LoginPage() {
       try {
         await refreshMe()
       } catch {
-        // If this fails, route guards will handle the bad session
+        // Route guards handle a bad session if /auth/me fails
       }
 
-      const from = (loc.state as any)?.from
+      const from = (loc.state as { from?: string } | null)?.from
       nav(typeof from === 'string' && from ? from : '/dashboard')
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
       if (Array.isArray(detail)) {
-        setError(detail.map((d: any) => d?.msg ?? String(d)).join(', '))
+        setError(detail.map((d) => (typeof d === 'object' && d && 'msg' in d ? String((d as { msg: string }).msg) : String(d))).join(', '))
       } else if (typeof detail === 'string') {
         setError(detail)
       } else {
-        setError('Login failed')
+        setError('Login failed. Check your email and password.')
       }
     } finally {
       setLoading(false)
@@ -62,38 +72,81 @@ export function LoginPage() {
   }
 
   return (
-    <div className="page" style={{ maxWidth: 520, marginTop: 56 }}>
-      <div className="card" style={{ padding: 18 }}>
-        <div style={{ display: 'grid', gap: 6 }}>
-          <div style={{ fontSize: 12, letterSpacing: 0.12, color: 'var(--text)' }}>EIMS</div>
-          <h1 style={{ lineHeight: 1.1 }}>Early Intervention Management System</h1>
-          <p className="muted">Sign in to continue</p>
-        </div>
-
-        <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12, marginTop: 14 }}>
-          <label style={{ display: 'grid', gap: 6 }}>
-            Email
-            <input value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" />
-          </label>
-          <label style={{ display: 'grid', gap: 6 }}>
-            Password
-            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="current-password" />
-          </label>
-          <button type="submit" disabled={loading}>
-            {loading ? 'Signing in…' : 'Sign in'}
-          </button>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-            <Link to="/reset-password" className="muted" style={{ fontSize: 13 }}>
-              Forgot password?
-            </Link>
-            <Link to="/users" className="muted" style={{ fontSize: 13 }}>
-              Change password
-            </Link>
+    <div className="loginPage">
+      <section className="loginBrand" aria-label="About this system">
+        <div className="loginBrandInner">
+          <div className="loginLogoRow">
+            <img className="loginLogo" src="/logo.png" alt="EIMS logo" />
+            <div>
+              <div className="loginEyebrow">Early Intervention</div>
+              <h1 className="loginTitle">Management System</h1>
+            </div>
           </div>
-          {error ? <div className="error">{error}</div> : null}
-        </form>
-      </div>
+
+          <p className="loginLead">
+            A learning-analytics platform that helps universities identify at-risk students early and coordinate
+            timely interventions before outcomes are final.
+          </p>
+
+          <ul className="loginHighlights">
+            {HIGHLIGHTS.map((item) => (
+              <li key={item.title} className="loginHighlight">
+                <span className="loginHighlightDot" aria-hidden />
+                <div>
+                  <strong>{item.title}</strong>
+                  <p>{item.text}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <p className="loginFootnote">
+            Powered by machine learning trained on open university learning analytics data.
+          </p>
+        </div>
+      </section>
+
+      <section className="loginPanel" aria-label="Sign in">
+        <div className="loginCard">
+          <header className="loginCardHeader">
+            <h2>Sign in</h2>
+            <p className="muted">Use your staff or admin account to continue.</p>
+          </header>
+
+          <form className="loginForm" onSubmit={onSubmit}>
+            <label className="loginField">
+              <span>Email</span>
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                type="email"
+                autoComplete="username"
+                placeholder="you@university.ac.uk"
+              />
+            </label>
+            <label className="loginField">
+              <span>Password</span>
+              <input
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                type="password"
+                autoComplete="current-password"
+                placeholder="••••••••"
+              />
+            </label>
+
+            {error ? <div className="error">{error}</div> : null}
+
+            <button type="submit" className="loginSubmit" disabled={loading}>
+              {loading ? 'Signing in…' : 'Sign in'}
+            </button>
+
+            <p className="loginForgot">
+              <Link to="/reset-password">Forgot your password?</Link>
+            </p>
+          </form>
+        </div>
+      </section>
     </div>
   )
 }
-

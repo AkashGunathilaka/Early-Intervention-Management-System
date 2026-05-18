@@ -23,6 +23,57 @@ router = APIRouter(prefix="/admin/models", tags=["Admin - Models"])
 BASE_DIR = Path(__file__).resolve().parents[3]
 
 
+def _metrics_json_candidates(model_path: Path) -> list[Path]:
+    """Paths where training may have saved metrics (master vs retrain layouts differ)."""
+    artifact_dir = model_path.parent
+    candidates = [artifact_dir / "metrics.json"]
+    if model_path.name == "final_master_model.pkl":
+        candidates.insert(0, artifact_dir / "final_master_metrics.json")
+    elif model_path.name.endswith("_model.pkl"):
+        candidates.insert(0, artifact_dir / model_path.name.replace("_model.pkl", "_metrics.json"))
+    return candidates
+
+
+def _metrics_from_db_row(model: ModelRecord) -> dict | None:
+    if model.accuracy is None and model.f1_score is None and model.roc_auc is None:
+        return None
+    return {
+        "accuracy": model.accuracy,
+        "precision": model.precision,
+        "recall": model.recall,
+        "f1_score": model.f1_score,
+        "roc_auc": model.roc_auc,
+        "source": "database",
+    }
+
+
+def _load_metrics_for_model(model: ModelRecord) -> dict:
+    if not model.model_path:
+        raise HTTPException(status_code=404, detail="Model artifact path missing")
+
+    model_path = Path(model.model_path)
+    if not model_path.is_absolute():
+        model_path = BASE_DIR / model_path
+
+    for metrics_path in _metrics_json_candidates(model_path):
+        if metrics_path.exists():
+            try:
+                with open(metrics_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as exc:
+                raise HTTPException(status_code=500, detail=f"Failed to read {metrics_path.name}: {exc}")
+
+    from_db = _metrics_from_db_row(model)
+    if from_db is not None:
+        return from_db
+
+    tried = ", ".join(p.name for p in _metrics_json_candidates(model_path))
+    raise HTTPException(
+        status_code=404,
+        detail=f"No metrics file found for model_id={model.model_id} (looked for {tried})",
+    )
+
+
 # Lists all trained model records
 @router.get("/", response_model=list[ModelRecordResponse])
 def list_models(
@@ -126,20 +177,4 @@ def get_model_metrics_file(
     if model is None:
         raise HTTPException(status_code=404, detail="Model not found")
 
-    if not model.model_path:
-        raise HTTPException(status_code=404, detail="Model artifact path missing")
-
-    model_path = Path(model.model_path)
-    if not model_path.is_absolute():
-        model_path = BASE_DIR / model_path
-    # the trainer saves metrics.json in the same folder as the model artifact
-    artifact_dir = model_path.parent
-    metrics_path = artifact_dir / "metrics.json"
-    if not metrics_path.exists():
-        raise HTTPException(status_code=404, detail=f"metrics.json not found for model_id={model_id}")
-    # read and return the metrics JSON for display
-    try:
-        with open(metrics_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to read metrics.json: {exc}")
+    return _load_metrics_for_model(model)

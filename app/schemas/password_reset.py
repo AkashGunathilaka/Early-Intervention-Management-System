@@ -15,3 +15,9 @@ class PasswordResetConfirm(BaseModel):
     token: str
     new_password: str
 
+
+class PasswordResetRequestResponse(BaseModel):
+    message: str
+    reset_token: str | None = None
+    expires_minutes: int | None = None
+

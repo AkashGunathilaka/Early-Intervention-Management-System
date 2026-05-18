@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import { api } from '../../lib/api'
 import { Card } from '../../components/ui/Card'
+import { PageHeader } from '../../components/ui/PageHeader'
 
 function formatApiDetail(detail: unknown, fallback: string): string {
   if (typeof detail === 'string') return detail
@@ -107,9 +108,8 @@ export function AdminUsersPage() {
 
   return (
     <div className="page">
-      <div className="pageHeader">
-        <h1>Admin — Users</h1>
-      </div>
+      <PageHeader eyebrow="Admin" title="Users" lead="Create staff accounts and manage who has access." />
+
       {loading ? <p>Loading…</p> : null}
       {error ? <p className="error">{error}</p> : null}
       {message ? <p className="success">{message}</p> : null}

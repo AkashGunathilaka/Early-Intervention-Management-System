@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../lib/api'
 import { Card } from '../../components/ui/Card'
+import { PageHeader } from '../../components/ui/PageHeader'
 import { Stat } from '../../components/ui/Stat'
 import { fmt } from '../../lib/format'
 
@@ -107,9 +108,8 @@ export function AdminModelsPage() {
 
   return (
     <div className="page">
-      <div className="pageHeader">
-        <h1>Admin — Models</h1>
-      </div>
+      <PageHeader eyebrow="Admin" title="Models" lead="View the active model, metrics, and switch between trained versions." />
+
       {loading ? <p>Loading…</p> : null}
       {error ? <p className="error">{error}</p> : null}
 

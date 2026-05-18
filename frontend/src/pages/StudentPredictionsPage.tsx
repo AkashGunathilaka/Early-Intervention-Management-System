@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { Card } from '../components/ui/Card'
+import { PageHeader } from '../components/ui/PageHeader'
 import { RiskBadge, type RiskLevel } from '../components/ui/RiskBadge'
 
 // Shows the prediction history for a student
@@ -57,19 +58,16 @@ export function StudentPredictionsPage() {
 
   return (
     <div className="page">
-      <div className="pageHeader">
-        <div>
-          <h1>Prediction history</h1>
-          <div className="pageHeaderLinks" style={{ marginTop: 8 }}>
-            <Link className="pill" to={`/students/${studentId}`}>
-              ← Back to profile
-            </Link>
-            <Link className="pill" to="/students">
-              Back to search
-            </Link>
-          </div>
+      <PageHeader
+        eyebrow="Student"
+        title="Prediction history"
+        lead={`All model runs for student #${studentId}.`}
+      >
+        <div className="pageHeaderLinks">
+          <Link className="pill" to={`/students/${studentId}`}>← Back to profile</Link>
+          <Link className="pill" to="/students">Back to search</Link>
         </div>
-      </div>
+      </PageHeader>
 
       {loading ? <p>Loading…</p> : null}
       {error ? <p className="error">{error}</p> : null}
