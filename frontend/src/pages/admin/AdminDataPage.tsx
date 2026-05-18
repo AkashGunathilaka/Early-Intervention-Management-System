@@ -67,6 +67,10 @@ export function AdminDataPage() {
             <label style={{ display: 'grid', gap: 6 }}>
               dataset_id
               <input value={datasetId} onChange={(e) => setDatasetId(e.target.value)} placeholder="e.g. 1" />
+              <span className="muted" style={{ fontSize: 11, fontWeight: 400 }}>
+                Imported students will be added to this cohort (visible on Dashboard and Students when that dataset is
+                selected).
+              </span>
             </label>
 
             <label style={{ display: 'grid', gap: 6 }}>

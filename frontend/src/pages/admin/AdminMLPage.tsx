@@ -189,6 +189,9 @@ export function AdminMLPage() {
           <div style={{ display: 'grid', gap: 12 }}>
             <label style={{ display: 'grid', gap: 6 }}>
               Dataset ID
+              <span className="muted" style={{ fontSize: 11, fontWeight: 400 }}>
+                Selects which uploaded training CSV to read (CSV retrain).
+              </span>
               <input
                 value={datasetId}
                 onChange={(e) => setDatasetId(e.target.value)}
