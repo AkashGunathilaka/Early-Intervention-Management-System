@@ -26,6 +26,14 @@ def auth_headers() -> dict:
     return {"Authorization": f"Bearer {login_token()}"}
 
 
+def test_password_reset_unknown_email():
+    r = client.post("/auth/request-password-reset", json={"email": "nobody-here@example.com"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert "message" in body
+    assert body.get("reset_token") is None
+
+
 def test_protected_requires_auth():
     #protected routes should reject requests without a token 
     r = client.get("/students/")

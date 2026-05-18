@@ -1,6 +1,7 @@
 import { type FormEvent, useMemo, useState } from 'react'
 import { api } from '../../lib/api'
 import { Card } from '../../components/ui/Card'
+import { PageHeader } from '../../components/ui/PageHeader'
 
 // Admin page for ML tasks 
 // Admins can upload datasets, retrain from an existing dataset, or OULAD raw files 
@@ -156,12 +157,8 @@ export function AdminMLPage() {
 
   return (
     <div className="page">
-      <div className="pageHeader">
-        <div style={{ display: 'grid', gap: 6 }}>
-          <h1>Admin — ML</h1>
-          <p className="muted">Upload a CSV dataset, then retrain a new model version from it.</p>
-        </div>
-      </div>
+      <PageHeader eyebrow="Admin" title="ML" lead="Upload a CSV dataset, then retrain a new model version from it." />
+
 
       {error ? <p className="error">{error}</p> : null}
       {message ? <p className="success">{message}</p> : null}

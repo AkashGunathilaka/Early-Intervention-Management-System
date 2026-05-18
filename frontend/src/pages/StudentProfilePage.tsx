@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { api } from '../lib/api'
 
 import { Card } from '../components/ui/Card'
+import { PageHeader } from '../components/ui/PageHeader'
 import { RiskBadge, type RiskLevel } from '../components/ui/RiskBadge'
 import { Stat as BigStat } from '../components/ui/Stat'
 import { useAuth } from '../context/AuthContext'
@@ -27,6 +28,9 @@ type Student = {
   code_module: string | null
   code_presentation: string | null
   region: string | null
+  gender: string | null
+  studied_credits: number | null
+  num_of_prev_attempts: number | null
 }
 
 type Intervention = {
@@ -390,29 +394,24 @@ export function StudentProfilePage() {
 
   return (
     <div className="page" style={{ maxWidth: 1100 }}>
-      <div className="pageHeader">
-        <div>
-          <h1>Student Profile</h1>
-          <div className="pageHeaderLinks" style={{ marginTop: 8 }}>
-            <Link className="pill" to="/students">
-              ← Back to search
-            </Link>
-            <Link className="pill" to={`/students/${studentId}/predictions`}>
-              Prediction history
-            </Link>
-            <Link className="pill" to={`/students/${studentId}/snapshots`}>
-              Feature snapshots
-            </Link>
-          </div>
+      <PageHeader
+        eyebrow="Student"
+        title={data ? `Profile #${data.student.student_id}` : 'Student profile'}
+        lead="Latest prediction, feature snapshot, interventions, and history."
+        actions={
+          !loading && data ? (
+            <button type="button" onClick={generatePrediction} disabled={generating}>
+              {generating ? 'Generating…' : prediction ? 'Regenerate prediction' : 'Generate prediction'}
+            </button>
+          ) : null
+        }
+      >
+        <div className="pageHeaderLinks">
+          <Link className="pill" to="/students">← Back to search</Link>
+          <Link className="pill" to={`/students/${studentId}/predictions`}>Prediction history</Link>
+          <Link className="pill" to={`/students/${studentId}/snapshots`}>Feature snapshots</Link>
         </div>
-
-        {!loading && data ? (
-          <button onClick={generatePrediction} disabled={generating}>
-            {generating ? 'Generating…' : prediction ? 'Regenerate prediction' : 'Generate prediction'}
-          </button>
-        ) : null}
-      </div>
-
+      </PageHeader>
       {loading ? <p>Loading…</p> : null}
       {error ? <p className="error">{error}</p> : null}
 

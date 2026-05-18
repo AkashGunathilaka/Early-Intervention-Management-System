@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { Card } from '../components/ui/Card'
+import { PageHeader } from '../components/ui/PageHeader'
 import { Stat } from '../components/ui/Stat'
 import { useDataset } from '../context/DatasetContext'
 
@@ -101,25 +102,24 @@ export function DashboardPage() {
 
   return (
     <div className="page" style={{ maxWidth: 1000 }}>
-      <div className="pageHeader">
-        <div>
-          <h1>Dashboard</h1>
-          {datasets.length ? (
-            <div style={{ marginTop: 10, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-              <span className="muted" style={{ fontSize: 12 }}>
-                Dataset
-              </span>
-              <select value={datasetId ?? ''} onChange={(e) => setDatasetId(Number(e.target.value))} style={{ width: 420 }}>
-                {datasets.map((d) => (
-                  <option key={d.dataset_id} value={d.dataset_id}>
-                    {d.dataset_id} — {d.dataset_name} ({d.source_type})
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Overview"
+        title="Dashboard"
+        lead="Monitor students, predictions, and interventions for your selected dataset."
+      >
+        {datasets.length ? (
+          <div className="pageHeroMeta">
+            <span className="pageHeroMetaLabel">Dataset</span>
+            <select value={datasetId ?? ''} onChange={(e) => setDatasetId(Number(e.target.value))} style={{ maxWidth: 420 }}>
+              {datasets.map((d) => (
+                <option key={d.dataset_id} value={d.dataset_id}>
+                  {d.dataset_id} — {d.dataset_name} ({d.source_type})
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
+      </PageHeader>
       {loading ? <p>Loading…</p> : null}
       {error ? <p className="error">{error}</p> : null}
 

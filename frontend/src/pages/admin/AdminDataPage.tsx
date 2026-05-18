@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { api } from '../../lib/api'
 import { Card } from '../../components/ui/Card'
+import { PageHeader } from '../../components/ui/PageHeader'
 
 // Admin page for importing student data from a CSV
 // CSV should be under uploads/ or seed/ and contain the relevant columns
@@ -55,14 +56,8 @@ export function AdminDataPage() {
 
   return (
     <div className="page">
-      <div className="pageHeader">
-        <div style={{ display: 'grid', gap: 6 }}>
-          <h1>Admin — Data</h1>
-          <p className="muted">
-            Bulk import Students + Feature Snapshots from a single CSV.
-          </p>
-        </div>
-      </div>
+      <PageHeader eyebrow="Admin" title="Data" lead="Bulk import students and feature snapshots from a single CSV." />
+
 
       {error ? <p className="error">{error}</p> : null}
 

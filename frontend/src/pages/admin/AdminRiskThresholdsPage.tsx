@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import { api } from '../../lib/api'
+import { PageHeader } from '../../components/ui/PageHeader'
 
 // Admin page for changing risk thresholds
 // these values decide whether a score is shown as high medium or low
@@ -68,16 +69,18 @@ export function AdminRiskThresholdsPage() {
   }
 
   return (
-    <div className="page" style={{ maxWidth: 900 }}>
-      <div className="pageHeader" style={{ justifyContent: 'center' }}>
-        <h1>Admin — Risk thresholds</h1>
-      </div>
+    <div className="page">
+      <PageHeader
+        eyebrow="Admin"
+        title="Risk thresholds"
+        lead="Set the score cutoffs used to label students as high, medium, or low risk."
+      />
       {loading ? <p>Loading…</p> : null}
       {error ? <p className="error">{error}</p> : null}
       {message ? <p className="success">{message}</p> : null}
 
       {data ? (
-        <div className="card" style={{ maxWidth: 520, margin: '0 auto' }}>
+        <div className="card">
           <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12 }}>
           <label style={{ display: 'grid', gap: 6 }}>
             High threshold (0–1)

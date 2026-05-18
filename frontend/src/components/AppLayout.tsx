@@ -8,22 +8,22 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const loc = useLocation()
   const { user, logout: doLogout } = useAuth()
 
-  // log the user out and send them back to the login 
   function logout() {
     doLogout()
     nav('/login')
   }
 
-  // mark the current page as active in the navigation
   const isActive = (path: string) => (loc.pathname === path ? true : loc.pathname.startsWith(path + '/'))
 
   return (
     <div>
       <header className="topbar">
         <div className="topbarInner">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div className="brand">EIMS</div>
-            <nav className="navLinks">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+            <Link to="/dashboard" className="brand" aria-label="Go to dashboard">
+              <img className="topbarLogo" src="/logo.png" alt="Early Intervention Management System" />
+            </Link>
+            <nav className="navLinks" aria-label="Main">
               <Link to="/dashboard" className={`navLink ${isActive('/dashboard') ? 'navLinkActive' : ''}`}>
                 Dashboard
               </Link>
@@ -33,7 +33,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <Link to="/users" className={`navLink ${isActive('/users') ? 'navLinkActive' : ''}`}>
                 Accounts
               </Link>
-              {/* only show the admin links if the user is an admin */}
               {user?.role === 'admin' ? (
                 <>
                   <Link to="/admin/models" className={`navLink ${isActive('/admin/models') ? 'navLinkActive' : ''}`}>
@@ -48,7 +47,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   <Link to="/admin/users" className={`navLink ${isActive('/admin/users') ? 'navLinkActive' : ''}`}>
                     Users
                   </Link>
-                  <Link to="/admin/risk-thresholds" className={`navLink ${isActive('/admin/risk-thresholds') ? 'navLinkActive' : ''}`}>
+                  <Link
+                    to="/admin/risk-thresholds"
+                    className={`navLink ${isActive('/admin/risk-thresholds') ? 'navLinkActive' : ''}`}
+                  >
                     Thresholds
                   </Link>
                 </>
@@ -56,15 +58,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </nav>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             <div style={{ color: 'var(--text)', fontSize: 12 }}>{user?.email ?? ''}</div>
-            <button onClick={logout}>Logout</button>
+            <button type="button" onClick={logout}>
+              Logout
+            </button>
           </div>
         </div>
       </header>
 
-      <main>{children}</main>
+      <main className="appMain">{children}</main>
     </div>
   )
 }
-

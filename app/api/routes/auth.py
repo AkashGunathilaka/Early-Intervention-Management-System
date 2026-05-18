@@ -4,6 +4,7 @@ Authentication and session management routes
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.core.security import get_password_hash
 from app.schemas.password import ChangePasswordRequest
@@ -19,7 +20,11 @@ from app.models.user import User
 from app.schemas.auth import Token
 from app.api.dependencies import get_current_active_user
 from app.schemas.user import UserResponse
-from app.schemas.password_reset import PasswordResetConfirm, PasswordResetRequest
+from app.schemas.password_reset import (
+    PasswordResetConfirm,
+    PasswordResetRequest,
+    PasswordResetRequestResponse,
+)
 # group together
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -79,20 +84,25 @@ def change_password(
     return {"message": "Password updated successfully"}
 
 
-# starts the password reset the reset token is returned in JSON
-@router.post("/request-password-reset")
+# starts the password reset; reset token is returned in JSON when the account exists
+@router.post("/request-password-reset", response_model=PasswordResetRequestResponse)
 def request_password_reset(payload: PasswordResetRequest, db: Session = Depends(get_db)):
-    # look up the account by email
-    user = db.query(User).filter(User.email == payload.email).first()
+    email = str(payload.email).strip()
+    user = (
+        db.query(User)
+        .filter(func.lower(User.email) == email.lower())
+        .first()
+    )
     if not user or not user.is_active:
-        return {"message": "If the account exists, a reset token has been generated."}
-    # create a short-lived reset token
+        return PasswordResetRequestResponse(
+            message="If the account exists, a reset token has been generated.",
+        )
     token = create_password_reset_token(email=user.email, expires_minutes=15)
-    return {
-        "message": "Reset token generated.",
-        "reset_token": token,
-        "expires_minutes": 15,
-    }
+    return PasswordResetRequestResponse(
+        message="Reset token generated.",
+        reset_token=token,
+        expires_minutes=15,
+    )
 
 
 # completes the password reset by validating the token and saving a new password

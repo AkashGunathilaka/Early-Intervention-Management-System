@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { useDataset } from '../context/DatasetContext'
 
 import { RiskBadge, type RiskLevel } from '../components/ui/RiskBadge'
+import { PageHeader } from '../components/ui/PageHeader'
 
 // Student search page 
 // admins can create datasets, regenerate predictions and add demo students 
@@ -304,9 +305,11 @@ export function StudentsPage() {
 
   return (
     <div className="page">
-      <div className="pageHeader">
-        <h1>Students</h1>
-      </div>
+      <PageHeader
+        eyebrow="Cohort"
+        title="Students"
+        lead="Search by risk level, region, and presentation. Open a profile for predictions and interventions."
+      />
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'end' }}>

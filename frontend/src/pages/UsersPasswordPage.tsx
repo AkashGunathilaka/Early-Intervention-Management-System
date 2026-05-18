@@ -1,4 +1,5 @@
 import { Card } from '../components/ui/Card'
+import { PageHeader } from '../components/ui/PageHeader'
 import { ChangePasswordForm } from '../components/ChangePasswordForm'
 import { useAuth } from '../context/AuthContext'
 
@@ -9,14 +10,11 @@ export function UsersPasswordPage() {
 
   return (
     <div className="page" style={{ maxWidth: 900 }}>
-      <div className="pageHeader">
-        <div>
-          <h1>Accounts</h1>
-          <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-            Signed in as <strong style={{ color: 'var(--text-h)' }}>{user?.email ?? ''}</strong>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Settings"
+        title="Accounts"
+        lead={`Signed in as ${user?.email ?? ''}. Update your password below.`}
+      />
 
       <Card>
         <ChangePasswordForm />
