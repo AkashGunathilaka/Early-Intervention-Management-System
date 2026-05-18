@@ -532,7 +532,7 @@ export function StudentProfilePage() {
             <Card title="Low-risk baseline (average) vs this student">
               <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
                 Baseline is calculated from <strong>low-risk students</strong> in the same dataset (latest prediction = Low) at days_from_start=
-                <strong>{featureAverages.days_from_start}</strong>. Δ is <strong>(low-risk avg − current)</strong>.
+                <strong>{featureAverages.days_from_start}</strong>. Δ is <strong>(current − low-risk avg)</strong>. Higher is better.
               </div>
 
               <table width="100%" cellPadding={8} style={{ borderCollapse: 'collapse' }}>
@@ -541,7 +541,7 @@ export function StudentProfilePage() {
                     <th>Feature</th>
                     <th>Current</th>
                     <th>Low-risk avg</th>
-                    <th>Δ (avg − current)</th>
+                    <th>Δ (current − avg)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -556,7 +556,7 @@ export function StudentProfilePage() {
                       ['avg_weight', snapshot.avg_weight],
                     ].map(([k, current]) => {
                       const avg = featureAverages.averages[String(k)]
-                      const delta = typeof avg === 'number' ? avg - Number(current) : null
+                      const delta = typeof avg === 'number' ? Number(current) - avg : null
                       return (
                         <tr key={String(k)} style={{ borderBottom: '1px solid var(--border)' }}>
                           <td>{String(k)}</td>

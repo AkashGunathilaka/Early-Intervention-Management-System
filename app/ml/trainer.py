@@ -9,8 +9,15 @@ import pickle
 import json
 
 import pandas as pd
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
-from sklearn.model_selection import train_test_split
+from sklearn.metrics import (
+    accuracy_score,
+    average_precision_score,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
+from sklearn.model_selection import GroupShuffleSplit, train_test_split
 from xgboost import XGBClassifier
 
 from app.ml.preprocessing import (
@@ -21,28 +28,147 @@ from app.ml.preprocessing import (
 MODEL_DIR = Path("model")
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
+GROUP_COL = "id_student"
+TEST_SIZE = 0.2
+RANDOM_STATE = 42
+
+
 def _write_metrics_json(artifact_dir: Path, payload: dict) -> str:
-    #save the training metrics beside the model files 
+    # save the training metrics beside the model files
     metrics_path = artifact_dir / "metrics.json"
     with open(metrics_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, sort_keys=True)
     return str(metrics_path)
 
+
 def validate_required_columns(df: pd.DataFrame, required_columns: list[str], dataset_name: str) -> None:
-    #Check that a dataset has all the required columns for training
+    # Check that a dataset has all the required columns for training
     missing = [col for col in required_columns if col not in df.columns]
     if missing:
         raise ValueError(f"{dataset_name} is missing required columns: {missing}")
 
 
-def train_model_from_csv(csv_path: str, version: str, target_column: str = "at_risk_label") -> dict:
-   #Train a model from a single csv file 
-   #this path used when the features have already been prepared before the upload 
-    artifact_dir = MODEL_DIR / "artifacts" / version
-    artifact_dir.mkdir(parents=True, exist_ok=True)
+def _build_xgb_model() -> XGBClassifier:
+    return XGBClassifier(
+        n_estimators=200,
+        max_depth=5,
+        learning_rate=0.05,
+        subsample=0.9,
+        colsample_bytree=0.9,
+        eval_metric="logloss",
+        random_state=RANDOM_STATE,
+    )
 
+
+def _evaluate_classifier(model: XGBClassifier, X_test: pd.DataFrame, y_test: pd.Series) -> dict:
+    y_pred = model.predict(X_test)
+    y_prob = model.predict_proba(X_test)[:, 1]
+    return {
+        "accuracy": float(accuracy_score(y_test, y_pred)),
+        "precision": float(precision_score(y_test, y_pred, zero_division=0)),
+        "recall": float(recall_score(y_test, y_pred, zero_division=0)),
+        "f1_score": float(f1_score(y_test, y_pred, zero_division=0)),
+        "roc_auc": float(roc_auc_score(y_test, y_prob)),
+        "pr_auc": float(average_precision_score(y_test, y_prob)),
+    }
+
+
+def _split_train_test(
+    X: pd.DataFrame,
+    y: pd.Series,
+    groups: pd.Series | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series, dict]:
+    """
+    Grouped split by student when groups are provided (notebook / master protocol).
+    Otherwise stratified row split for prepared CSVs without a student id column.
+    """
+    if groups is not None:
+        gss = GroupShuffleSplit(n_splits=1, test_size=TEST_SIZE, random_state=RANDOM_STATE)
+        train_idx, test_idx = next(gss.split(X, y, groups=groups))
+        split_meta = {
+            "type": "GroupShuffleSplit",
+            "test_size": TEST_SIZE,
+            "random_state": RANDOM_STATE,
+            "group_col": GROUP_COL,
+        }
+        return (
+            X.iloc[train_idx],
+            X.iloc[test_idx],
+            y.iloc[train_idx],
+            y.iloc[test_idx],
+            split_meta,
+        )
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X,
+        y,
+        test_size=TEST_SIZE,
+        random_state=RANDOM_STATE,
+        stratify=y,
+    )
+    split_meta = {
+        "type": "train_test_split",
+        "test_size": TEST_SIZE,
+        "random_state": RANDOM_STATE,
+        "stratify": True,
+    }
+    return X_train, X_test, y_train, y_test, split_meta
+
+
+def _encode_features(df: pd.DataFrame, target_column: str) -> tuple[pd.DataFrame, pd.Series, list[str], pd.Series | None]:
+    groups = df[GROUP_COL] if GROUP_COL in df.columns else None
+    X, y, feature_columns = encode_for_training(df, target_column=target_column)
+    return X, y, feature_columns, groups
+
+
+def _train_evaluate_save(
+    *,
+    X: pd.DataFrame,
+    y: pd.Series,
+    groups: pd.Series | None,
+    artifact_dir: Path,
+    metrics_payload: dict,
+) -> dict:
     model_path = artifact_dir / "model.pkl"
     feature_columns_path = artifact_dir / "feature_columns.pkl"
+    feature_columns = list(X.columns)
+
+    X_train, X_test, y_train, y_test, split_meta = _split_train_test(X, y, groups=groups)
+
+    model = _build_xgb_model()
+    model.fit(X_train, y_train)
+
+    metrics = _evaluate_classifier(model, X_test, y_test)
+
+    with open(model_path, "wb") as f:
+        pickle.dump(model, f)
+    with open(feature_columns_path, "wb") as f:
+        pickle.dump(feature_columns, f)
+
+    metrics_path = _write_metrics_json(
+        artifact_dir,
+        {
+            **metrics_payload,
+            "split": split_meta,
+            "training_rows": int(len(X)),
+            "feature_count": int(len(feature_columns)),
+            **metrics,
+        },
+    )
+
+    return {
+        **metrics,
+        "model_path": str(model_path),
+        "feature_columns_path": str(feature_columns_path),
+        "metrics_path": metrics_path,
+    }
+
+
+def train_model_from_csv(csv_path: str, version: str, target_column: str = "at_risk_label") -> dict:
+    # Train a model from a single csv file
+    # this path used when the features have already been prepared before the upload
+    artifact_dir = MODEL_DIR / "artifacts" / version
+    artifact_dir.mkdir(parents=True, exist_ok=True)
 
     df = pd.read_csv(csv_path)
 
@@ -58,73 +184,19 @@ def train_model_from_csv(csv_path: str, version: str, target_column: str = "at_r
     ]
     validate_required_columns(df, required_columns, "Retrain CSV Dataset")
 
-    y = df[target_column]
-    X = df.drop(columns=[target_column])
+    X, y, _feature_columns, groups = _encode_features(df, target_column=target_column)
 
-    # Student id is dropped
-    if "id_student" in X.columns:
-        X = X.drop(columns=["id_student"])
-
-    # Convert any categorical columns into numeric columns for XGBoost
-    X = pd.get_dummies(X, drop_first=True)
-    # Clean column names so they are safe to save and reuse later
-    X.columns = X.columns.str.replace(r"[\[\]<]", "", regex=True)
-
-    feature_columns = list(X.columns)
-
-    # we used a fixed random state so repeated training runs are easier to compare
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42,         stratify=y
-    )
-
-    # Main XGBoost model used for risk prediction
-    model = XGBClassifier(
-        n_estimators=200,
-        max_depth=5,
-        learning_rate=0.05,
-        subsample=0.9,
-        colsample_bytree=0.9,
-        eval_metric="logloss",
-        random_state=42,
-    )
-    model.fit(X_train, y_train)
-
-    y_pred = model.predict(X_test)
-    y_prob = model.predict_proba(X_test)[:, 1]
-
-    metrics = {
-        "accuracy": float(accuracy_score(y_test, y_pred)),
-        "precision": float(precision_score(y_test, y_pred, zero_division=0)),
-        "recall": float(recall_score(y_test, y_pred, zero_division=0)),
-        "f1_score": float(f1_score(y_test, y_pred, zero_division=0)),
-        "roc_auc": float(roc_auc_score(y_test, y_prob)),
-    }
-    # save the model
-    with open(model_path, "wb") as f:
-        pickle.dump(model, f)
-    # save the feature columns
-    with open(feature_columns_path, "wb") as f:
-        pickle.dump(feature_columns, f)
-
-    metrics_path = _write_metrics_json(
-        artifact_dir,
-        {
+    return _train_evaluate_save(
+        X=X,
+        y=y,
+        groups=groups,
+        artifact_dir=artifact_dir,
+        metrics_payload={
             "type": "csv_retrain",
             "source_csv": str(csv_path),
             "target_column": target_column,
-            "split": {"method": "train_test_split", "test_size": 0.2, "random_state": 42, "stratify": True},
-            "training_rows": int(len(df)),
-            "feature_count": int(len(feature_columns)),
-            **metrics,
         },
     )
-
-    return {
-        **metrics,
-        "model_path": str(model_path),
-        "feature_columns_path": str(feature_columns_path),
-        "metrics_path": metrics_path,
-    }
 
 
 def train_model_from_oulad_tables(
@@ -137,21 +209,17 @@ def train_model_from_oulad_tables(
     drop_code_module: bool = True,
 ) -> dict:
     """
-    Train a model from the raw OULAD-style CSV tables 
+    Train a model from the raw OULAD-style CSV tables
     this builds the training features first then trains the model
     """
     artifact_dir = MODEL_DIR / "artifacts" / version
     artifact_dir.mkdir(parents=True, exist_ok=True)
-
-    model_path = artifact_dir / "model.pkl"
-    feature_columns_path = artifact_dir / "feature_columns.pkl"
 
     student_info = pd.read_csv(student_info_path)
     student_vle = pd.read_csv(student_vle_path)
     student_assessment = pd.read_csv(student_assessment_path)
     assessments = pd.read_csv(assessments_path)
 
-    # Check that the required columns are present in the input files
     validate_required_columns(
         student_info,
         ["id_student", "code_module", "code_presentation", "final_result", "imd_band"],
@@ -185,51 +253,14 @@ def train_model_from_oulad_tables(
         drop_code_module=drop_code_module,
     )
 
-    # splits the target from the features and encode the categorical values
-    X, y, feature_columns = encode_for_training(df, target_column="at_risk")
+    X, y, _feature_columns, groups = _encode_features(df, target_column="at_risk")
 
-    # keep the same split setup as the csv training path
-    X_train, X_test, y_train, y_test = train_test_split(
-        X,
-        y,
-        test_size=0.2,
-        random_state=42,
-        stratify=y,
-    )
-
-    # train the same XGBoost model, just using the features built from the raw tables
-    model = XGBClassifier(
-        n_estimators=200,
-        max_depth=5,
-        learning_rate=0.05,
-        subsample=0.9,
-        colsample_bytree=0.9,
-        eval_metric="logloss",
-        random_state=42,
-    )
-    model.fit(X_train, y_train)
-
-    y_pred = model.predict(X_test)
-    y_prob = model.predict_proba(X_test)[:, 1]
-
-    metrics = {
-        "accuracy": float(accuracy_score(y_test, y_pred)),
-        "precision": float(precision_score(y_test, y_pred, zero_division=0)),
-        "recall": float(recall_score(y_test, y_pred, zero_division=0)),
-        "f1_score": float(f1_score(y_test, y_pred, zero_division=0)),
-        "roc_auc": float(roc_auc_score(y_test, y_prob)),
-    }
-
-    # save the model
-    with open(model_path, "wb") as f:
-        pickle.dump(model, f)
-
-    with open(feature_columns_path, "wb") as f:
-        pickle.dump(feature_columns, f)
-
-    metrics_path = _write_metrics_json(
-        artifact_dir,
-        {
+    result = _train_evaluate_save(
+        X=X,
+        y=y,
+        groups=groups,
+        artifact_dir=artifact_dir,
+        metrics_payload={
             "type": "oulad_retrain",
             "source_files": {
                 "student_info_path": str(student_info_path),
@@ -239,18 +270,8 @@ def train_model_from_oulad_tables(
             },
             "early_days": early_days,
             "drop_code_module": drop_code_module,
-            "split": {"method": "train_test_split", "test_size": 0.2, "random_state": 42, "stratify": True},
-            "training_rows": int(len(df)),
-            "feature_count": int(len(feature_columns)),
-            **metrics,
         },
     )
-
-    return {
-        **metrics,
-        "model_path": str(model_path),
-        "feature_columns_path": str(feature_columns_path),
-        "training_rows": int(len(df)),
-        "feature_count": int(len(feature_columns)),
-        "metrics_path": metrics_path,
-    }
+    result["training_rows"] = int(len(X))
+    result["feature_count"] = int(len(X.columns))
+    return result
