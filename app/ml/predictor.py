@@ -15,8 +15,8 @@ from app.ml.preprocessing import build_prediction_dataframe
 BASE_DIR = Path(__file__).resolve().parents[2]
 MODEL_DIR = BASE_DIR / "model"
 
-MODEL_PATH = MODEL_DIR / "final_xgb_model.pkl"
-FEATURE_COLUMNS_PATH = MODEL_DIR / "final_feature_columns.pkl"
+MODEL_PATH = MODEL_DIR / "final_master_model.pkl"
+FEATURE_COLUMNS_PATH = MODEL_DIR / "final_master_feature_columns.pkl"
 
 
 @lru_cache(maxsize=1)
@@ -59,15 +59,6 @@ def load_feature_columns_from_path(feature_columns_path: str):
         return pickle.load(f)
 
 
-def get_risk_level(risk_score: float) -> str:
-    # convert a risk socre into a risk level
-    if risk_score >= 0.7:
-        return "High"
-    if risk_score >= 0.4:
-        return "Medium"
-    return "Low"
-
-
 def generate_prediction(
     feature_snapshot,
     student,
@@ -89,14 +80,12 @@ def generate_prediction(
     risk_score = float(probs[1])
     predicted_label = int(model.predict(df)[0])
     confidence_score = float(max(probs))
-    risk_level = get_risk_level(risk_score)
 
     top_factors = _explain_top_factors(model=model, df=df, cache_key=_get_model_cache_key(model_path))
 
     return {
         "risk_score": risk_score,
         "predicted_label": predicted_label,
-        "risk_level": risk_level,
         "confidence_score": confidence_score,
         "top_factors": top_factors,
     }
