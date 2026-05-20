@@ -14,6 +14,7 @@ from app.db.database import get_db
 from app.models.model_record import ModelRecord
 from app.models.user import User
 from app.schemas.model_record import ModelRecordResponse
+from app.services.model_service import activate_model_by_id
 
 #group together
 router = APIRouter(prefix="/admin/models", tags=["Admin - Models"])
@@ -103,22 +104,7 @@ def activate_model(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    target = db.query(ModelRecord).filter(ModelRecord.model_id == model_id).first()
-    # stop early if target is none
-    if target is None:
-        raise HTTPException(status_code=404, detail="Model not found")
-
-    # turn of all active models first so only one model is live at a time
-    db.query(ModelRecord).filter(ModelRecord.is_active == True).update(
-        {"is_active": False},
-        synchronize_session=False,
-    )
-
-    target.is_active = True
-    db.commit()
-    db.refresh(target)
-
-    return target
+    return activate_model_by_id(db, model_id)
 
 
 # Guardrails , deletes a non active , non-locked model record and optionally removes its saved artefacts

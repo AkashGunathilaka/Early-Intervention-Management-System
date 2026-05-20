@@ -16,6 +16,7 @@ from app.models.user import User
 
 from app.ml.trainer import train_model_from_csv, train_model_from_oulad_tables
 from app.ml.predictor import clear_model_cache
+from app.services.model_service import deactivate_all_models
 
 router = APIRouter(prefix="/admin/ml", tags=["Admin - ML"])
 
@@ -28,10 +29,7 @@ def _register_new_active_model(
     model_name: str,
     metrics: dict,
 ) -> ModelRecord:
-    db.query(ModelRecord).filter(ModelRecord.is_active == True).update(
-        {"is_active": False},
-        synchronize_session=False,
-    )
+    deactivate_all_models(db)
     new_model = ModelRecord(
         dataset_id=dataset_id,
         model_name=model_name,

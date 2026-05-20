@@ -7,7 +7,7 @@ from app.models.model_record import ModelRecord
 from app.models.student import Student
 from app.models.prediction import Prediction
 from app.ml.predictor import generate_prediction
-from app.models.risk_threshold import RiskThreshold
+from app.services.risk import get_risk_thresholds, risk_level_from_score
 
 
 def predict_for_student(student_id: int, db: Session, *, explain: bool = True) -> Prediction:
@@ -52,18 +52,13 @@ def predict_for_student(student_id: int, db: Session, *, explain: bool = True) -
         feature_columns_path=active_model.feature_columns_path,
     )
 
-    # use configured thresholds if they exist, otherwise use the default values
-    threshold = db.query(RiskThreshold).first()
-    high_threshold = threshold.high_threshold if threshold else 0.7
-    medium_threshold = threshold.medium_threshold if threshold else 0.4
-
+    high_threshold, medium_threshold = get_risk_thresholds(db)
     risk_score = prediction_result["risk_score"]
-    if risk_score >= high_threshold:
-        risk_level = "High"
-    elif risk_score >= medium_threshold:
-        risk_level = "Medium"
-    else:
-        risk_level = "Low"
+    risk_level = risk_level_from_score(
+        risk_score,
+        high_threshold=high_threshold,
+        medium_threshold=medium_threshold,
+    )
 
     # saves the prediction 
     new_prediction = Prediction(

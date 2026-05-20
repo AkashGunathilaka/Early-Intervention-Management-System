@@ -13,6 +13,7 @@ from app.db.database import SessionLocal
 from app.models.dataset import Dataset
 from app.models.model_record import ModelRecord
 from app.models.student import Student
+from app.services.model_service import deactivate_all_models
 
 
 # Master model files saved in the project
@@ -60,13 +61,9 @@ def _ensure_master_active(db) -> ModelRecord:
         db.flush()
         print(f"  Created master ModelRecord id={master.model_id}")
 
-    # only the master model should stay active 
-    db.query(ModelRecord).filter(ModelRecord.model_id != master.model_id).update(
-        {"is_active": False},
-        synchronize_session=False,
-    )
-    master.is_active = True
     master.is_locked = True
+    deactivate_all_models(db)
+    master.is_active = True
     db.flush()
     return master
 

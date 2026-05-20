@@ -10,38 +10,21 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_active_user
 from app.db.database import get_db
+from app.db.queries import latest_risk_level_counts
 from app.models.intervention import Intervention
 from app.models.prediction import Prediction
 from app.models.student import Student
 from app.models.user import User
 
-#Group together
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 
-#Builds a reusable subquery that finds the latest prediction ID for each student
-#This keeps the dashboard risk counts based on current risk only not old predictions
-def latest_prediction_ids_subquery(db: Session, dataset_id: int | None = None):
-    q = db.query(
-        Prediction.student_id,
-        func.max(Prediction.prediction_id).label("max_pid"),
-    ).group_by(Prediction.student_id)
-# if a dataset id selected, only include predictions for students in that dataset.
-    if dataset_id is not None:
-        q = q.join(Student, Student.student_id == Prediction.student_id).filter(Student.dataset_id == dataset_id)
-
-    return (
-        q.subquery()
-    )
-
-#Returns the main dashboard summary cards
 @router.get("/summary")
 def get_dashboard_summary(
     dataset_id: int | None = Query(default=None, description="Filter dashboard to a single dataset/cohort"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    #count queries for students, predictions and interventions
     s_q = db.query(func.count(Student.student_id))
     p_q = db.query(func.count(Prediction.prediction_id)).join(Student, Student.student_id == Prediction.student_id)
     i_q = db.query(func.count(Intervention.intervention_id)).join(Student, Student.student_id == Intervention.student_id)
@@ -54,19 +37,7 @@ def get_dashboard_summary(
     total_students = s_q.scalar() or 0
     total_predictions = p_q.scalar() or 0
     total_interventions = i_q.scalar() or 0
-# get the latest prediction for each student so risk counts show the current state
-    latest_pred_ids = latest_prediction_ids_subquery(db, dataset_id=dataset_id)
-# count only the latest risk level to avoid double counting with old predictions
-    latest_preds = (
-        db.query(Prediction.risk_level, func.count(Prediction.prediction_id))
-        .join(latest_pred_ids, Prediction.prediction_id == latest_pred_ids.c.max_pid)
-        .group_by(Prediction.risk_level)
-        .all()
-    )
-
-    counts = {"High": 0, "Medium": 0, "Low": 0}
-    for level, count in latest_preds:
-        counts[level] = count
+    counts = latest_risk_level_counts(db, dataset_id=dataset_id)
 
     return {
         "total_students": total_students,
@@ -80,30 +51,15 @@ def get_dashboard_summary(
     }
 
 
-# returns the risk breakdown for chart display
 @router.get("/risk-distribution")
 def get_risk_distribution(
     dataset_id: int | None = Query(default=None, description="Filter dashboard to a single dataset/cohort"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    latest_pred_ids = latest_prediction_ids_subquery(db, dataset_id=dataset_id)
-# count how  many students currently fall into each risk level
-    rows = (
-        db.query(Prediction.risk_level, func.count(Prediction.prediction_id))
-        .join(latest_pred_ids, Prediction.prediction_id == latest_pred_ids.c.max_pid)
-        .group_by(Prediction.risk_level)
-        .all()
-    )
-#keep all risk categories in the response
-    distribution = {"High": 0, "Medium": 0, "Low": 0}
-    for level, count in rows:
-        distribution[level] = count
-
-    return distribution
+    return latest_risk_level_counts(db, dataset_id=dataset_id)
 
 
-# Returns the most recent high risk predictions so staff can priortize students needing attention
 @router.get("/recent-high-risk")
 def get_recent_high_risk(
     limit: int = 10,
@@ -111,9 +67,7 @@ def get_recent_high_risk(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    # start with predictions marked as high risk and join students for filtering purposes
     q = db.query(Prediction).join(Student, Student.student_id == Prediction.student_id).filter(Prediction.risk_level == "High")
-    #limit the feed to one dataset if the dashboard is filtered
     if dataset_id is not None:
         q = q.filter(Student.dataset_id == dataset_id)
     rows = q.order_by(Prediction.prediction_date.desc()).limit(limit).all()
@@ -131,7 +85,6 @@ def get_recent_high_risk(
     ]
 
 
-# returns a count of interventions grouped by status
 @router.get("/intervention-status")
 def get_intervention_status(
     dataset_id: int | None = Query(default=None, description="Filter dashboard to a single dataset/cohort"),

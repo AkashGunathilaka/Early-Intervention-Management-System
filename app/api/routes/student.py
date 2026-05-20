@@ -27,6 +27,7 @@ from app.schemas.student_with_features import (
     StudentWithFeaturesCreateResponse,
 )
 from app.schemas.feature_averages import FeatureAveragesResponse
+from app.db.queries import fetch_latest_predictions_for_students, latest_prediction_ids_subquery
 from app.ml.preprocessing import average_profile_features
 from app.services.prediction_service import predict_for_student
 
@@ -183,14 +184,7 @@ def get_feature_averages_for_student(
 
     target_days = days_from_start if days_from_start is not None else latest_snapshot.days_from_start
 
-    # get each students latest prediction inside this dataset.
-    latest_pred_ids = (
-        db.query(Prediction.student_id, func.max(Prediction.prediction_id).label("max_pid"))
-        .join(Student, Student.student_id == Prediction.student_id)
-        .filter(Student.dataset_id == student.dataset_id)
-        .group_by(Prediction.student_id)
-        .subquery()
-    )
+    latest_pred_ids = latest_prediction_ids_subquery(db, dataset_id=student.dataset_id)
 
     # Use only student whose latest prediction is low risk
     low_risk_student_ids = (
@@ -303,20 +297,7 @@ def search_students(
         return []
 
     student_ids = [s.student_id for s in students]
-
-    latest_pred_ids = (
-        db.query(Prediction.student_id, func.max(Prediction.prediction_id).label("max_pid"))
-        .filter(Prediction.student_id.in_(student_ids))
-        .group_by(Prediction.student_id)
-        .subquery()
-    )
-
-    latest_preds = (
-        db.query(Prediction)
-        .join(latest_pred_ids, Prediction.prediction_id == latest_pred_ids.c.max_pid)
-        .all()
-    )
-    pred_by_student = {p.student_id: p for p in latest_preds}
+    pred_by_student = fetch_latest_predictions_for_students(db, student_ids)
 
     results = [
         {"student": s, "latest_prediction": pred_by_student.get(s.student_id)}

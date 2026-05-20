@@ -242,7 +242,7 @@ The full OULAD download is **not** in this repo (size and licensing). To reprodu
 
 For day-to-day use of the web app, the **bundled** files in `model/` are enough.
 
-**Note:** Runtime prediction uses paths stored on the active `ModelRecord` (often the master files above). Default pickles `model/final_xgb_model.pkl` and `model/final_feature_columns.pkl` are also present for training/retrain workflows. SQLAlchemy ORM code lives in `app/models/` (Python files only — not pickle files).
+**Note:** Runtime prediction uses paths stored on the active `ModelRecord` (typically `model/final_master_model.pkl` and `model/final_master_feature_columns.pkl`). Retrained models are saved under `model/artifacts/`. SQLAlchemy ORM code lives in `app/models/` (Python files only — not pickle files).
 
 ---
 
