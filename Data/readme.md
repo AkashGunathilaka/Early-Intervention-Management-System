@@ -22,6 +22,7 @@ The notebook looks for a folder named **`Data`** or **`data`** (either works).
 | `studentRegistration.csv` | Registration dates |
 | `demo_students.csv` | Small sample export from notebook work |
 
-These files are **gitignored** (`Data/*.csv`) because of size. Copy them from your OULAD download (the `anonymisedData` folder) after cloning.
+These files are **gitignored** (`Data/*.csv`) because of size. Copy them from your OULAD download or onedrive folder (the `anonymisedData` folder) after cloning.
 
 Download: https://analyse.kmi.open.ac.uk/open-dataset
+or you can access from the onedrive folder

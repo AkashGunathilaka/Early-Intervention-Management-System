@@ -28,7 +28,6 @@ Base = declarative_base()
 def get_db():
     """
     creates a database session for one request
-
     the route or service decides when to rollback or commit. This only makes sure the session is closed after the request finishes
     """
     db = SessionLocal()
