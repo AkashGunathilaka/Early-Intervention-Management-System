@@ -238,13 +238,13 @@ The full OULAD CSVs are **not committed** to git (size and licensing). They belo
 
 To reproduce training from scratch:
 
-1. Download OULAD and copy the `anonymisedData` CSVs into **`Data/`** (at minimum: `studentInfo.csv`, `studentVle.csv`, `studentAssessment.csv`, `assessments.csv`).
+1. Download OULAD files from the onedrive folder and copy the CSVs into **`Data/`** (at minimum: `studentInfo.csv`, `studentVle.csv`, `studentAssessment.csv`, `assessments.csv`).
 2. Open `Notebook/data_cleaning_and_ml_core.ipynb` and run all cells (it auto-detects `Data/` or `data/`).
 3. New pickles and metrics land under `model/`; retrain flows in **Admin → ML** register new `ModelRecord` rows under `model/artifacts/`.
 
-For day-to-day use of the web app, the **bundled** files in `model/` are enough — you do not need OULAD on disk unless you are retraining.
+For day-to-day use of the web app, the commited files in `model/` are enough — you do not need OULAD on disk unless you are retraining.
 
-**Note:** Runtime prediction uses paths stored on the active `ModelRecord` (typically `model/final_master_model.pkl` and `model/final_master_feature_columns.pkl` from the notebook). Retrained models are saved under `model/artifacts/`. SQLAlchemy ORM code lives in `app/models/` (Python files only — not pickle files).
+**Note:** Runtime prediction uses paths stored on the active `ModelRecord` (typically `model/final_master_model.pkl` and `model/final_master_feature_columns.pkl` from the notebook). Retrained models are saved under `model/artifacts/`. SQLAlchemy ORM code lives in `app/models/`.
 
 ---
 
@@ -274,20 +274,9 @@ tests/            API smoke tests
 
 ---
 
-## 14. Troubleshooting
 
-| Problem | What to check |
-|---------|----------------|
-| Login fails | User exists in DB; `is_active` is true; password matches what you seeded |
-| `No active model found` | Run `python -m Scripts.cleanup_test_artifacts` after at least one dataset exists |
-| Import: missing file | Run `generate_demo_csvs.py`; path must be under `uploads/` |
-| Frontend cannot reach API | `VITE_API_BASE_URL` in `frontend/.env`; backend on port 8000; CORS allows `localhost:5173` |
-| `Model file not found` | Ensure `model/*.pkl` files exist in the clone (they should be committed) |
-| Postgres connection error | Postgres running; `DATABASE_URL` user/password/database correct |
 
----
-
-## 15. Default URLs
+## 14. Default URLs
 
 | Service | URL |
 |---------|-----|
