@@ -10,15 +10,6 @@ import type { FeatureSnapshotRow } from '../types/featureSnapshot'
 // Shows all saved feature snapshots for a single student
 // the profile page only shows a small preview so this gives the full history
 
-// this value only exists when the snapshot was created from imported training data
-function formatAtRiskLabel(v: unknown): string {
-  if (v === null || v === undefined) return '—'
-  if (typeof v === 'string' && v.trim() === '') return '—'
-  const n = Number(v)
-  if (!Number.isFinite(n)) return '—'
-  return String(n)
-}
-
 export function StudentSnapshotsPage() {
   const { id } = useParams()
   const studentId = Number(id)
@@ -70,11 +61,7 @@ export function StudentSnapshotsPage() {
 
   return (
     <div className="page">
-      <PageHeader
-        eyebrow="Student"
-        title="Feature snapshot history"
-        lead={`Engineered inputs over time for student #${studentId}.`}
-      >
+      <PageHeader eyebrow="Student" title="Snapshot History">
         <div className="pageHeaderLinks">
           <Link className="pill" to={`/students/${studentId}`}>← Back to profile</Link>
           <Link className="pill" to="/students">Back to search</Link>
@@ -85,12 +72,7 @@ export function StudentSnapshotsPage() {
       {error ? <p className="error">{error}</p> : null}
 
       <div style={{ marginTop: 16 }}>
-        <Card title={`Snapshots for student_id=${studentId}`}>
-          <p className="muted" style={{ fontSize: 12, margin: '0 0 10px', lineHeight: 1.45 }}>
-            <strong>at_risk_label</strong> is only stored when the snapshot came from imported training data (CSV column{' '}
-            <code style={{ fontSize: 11 }}>at_risk_label</code>). Snapshots created from the student profile leave it unset
-            (shown as —).
-          </p>
+        <Card title="Snapshot History">
           {rows.length ? (
             <div
               style={{
@@ -112,12 +94,6 @@ export function StudentSnapshotsPage() {
                     <th style={{ ...thStyle, textAlign: 'right' }}>total_score</th>
                     <th style={{ ...thStyle, textAlign: 'right' }}>assessments</th>
                     <th style={{ ...thStyle, textAlign: 'right' }}>avg_weight</th>
-                    <th
-                      style={thStyle}
-                      title="0 = low risk, 1 = at risk in training data; empty when not provided"
-                    >
-                      at_risk
-                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -149,7 +125,6 @@ export function StudentSnapshotsPage() {
                         <td style={{ ...cellStyle, textAlign: 'right', fontFamily: 'ui-monospace, monospace' }}>
                           {fmt(s.avg_weight, 2)}
                         </td>
-                        <td style={{ ...cellStyle, fontFamily: 'ui-monospace, monospace' }}>{formatAtRiskLabel(s.at_risk_label)}</td>
                       </tr>
                     ))}
                 </tbody>

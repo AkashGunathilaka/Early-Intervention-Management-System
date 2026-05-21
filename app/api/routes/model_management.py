@@ -28,7 +28,9 @@ def _metrics_json_candidates(model_path: Path) -> list[Path]:
     """Paths where training may have saved metrics (master vs retrain layouts differ)."""
     artifact_dir = model_path.parent
     candidates = [artifact_dir / "metrics.json"]
-    if model_path.name == "final_master_model.pkl":
+    if model_path.name in ("final_master_model.pkl", "model.pkl") and artifact_dir.name == "master":
+        candidates.insert(0, artifact_dir / "metrics.json")
+    elif model_path.name == "final_master_model.pkl":
         candidates.insert(0, artifact_dir / "final_master_metrics.json")
     elif model_path.name.endswith("_model.pkl"):
         candidates.insert(0, artifact_dir / model_path.name.replace("_model.pkl", "_metrics.json"))
