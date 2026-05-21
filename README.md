@@ -77,7 +77,7 @@ pg_isready
 
 ---
 
-### Option A — Postgres.app 
+### Postgres.app 
 
 1. Download and install [Postgres.app](https://postgresapp.com).
 2. Open it and click **Initialize** to start the server.
@@ -99,25 +99,16 @@ CREATE DATABASE early_intervention;
 DATABASE_URL=postgresql+psycopg2://YOUR_MAC_USERNAME@127.0.0.1:5432/early_intervention
 ```
 
-Example: `postgresql+psycopg2://akashgunathilaka@127.0.0.1:5432/early_intervention`
+the other things in the env should be 
+SECRET_KEY=btQvGN1Pqi2e87ZzFGLXIeDvY_CXUdMU-y0s_RJYp-g54mcLI2qT39gUvRk6YGoGbLGC2R_hUGBKbedflXRitw
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=60
 
 ---
 
-
-
-
-
-
 ---
 
-### Option C — Homebrew (Mac)
-
-```bash
-brew install postgresql@16
-brew services start postgresql@16
-```
-
-Create the database (use the Postgres user that works on your machine):
+Create the database
 
 ```bash
 createdb early_intervention
@@ -129,29 +120,10 @@ Set `DATABASE_URL` in `.env` to the **same username and password** that work for
 
 ---
 
-### Postgres login vs website login
 
-| | Postgres | This application |
-|--|----------|------------------|
-| **What** | Database server account | Staff/admin in the `users` table |
-| **Used when** | `createdb`, `psql`, API connecting to DB | Logging in at http://localhost:5173 |
-| **Created by** | Postgres install / Docker | [Step 6](#6-create-your-first-admin-user) script |
-| **Example** | user `postgres`, password you chose | `admin@example.com` / `change-me-now` |
-
-If `createdb` says `password authentication failed`, Postgres is running but the **wrong user or password** was used — fix `.env`, not the website password.
-
----
 
 ### Verify Postgres before starting the API
 
-```bash
-pg_isready
-python -c "import os; from dotenv import load_dotenv; load_dotenv(); print(os.getenv('DATABASE_URL'))"
-```
-
-The second command must print a full `postgresql+psycopg2://...` URL, not `None`.
-
----
 
 ## 3. Backend environment (`.env`)
 
@@ -161,12 +133,7 @@ From the **repo root**:
 cp .env.example .env
 ```
 
-Edit `.env`:
 
-- **`DATABASE_URL`** — must match [step 2](#2-install-postgresql) (user, password, host, database name `early_intervention`).
-- **`SECRET_KEY`** — any long random string (signs JWT login tokens).
-
-Example (Docker or default Homebrew `postgres` user):
 
 ```env
 DATABASE_URL=postgresql+psycopg2://postgres:postgres@127.0.0.1:5432/early_intervention
@@ -188,7 +155,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-Use the same project folder for the venv and for running `uvicorn` (do not mix a venv from another copy of the repo).
+Use the same project folder for the venv and for running `uvicorn` 
 
 `requirements.txt` includes notebook/ML tooling as well as the API stack, so the first install can take a few minutes.
 
@@ -297,7 +264,6 @@ From the repo root (venv active):
 ```bash
 python -m Scripts.cleanup_test_artifacts
 ```
-
 This creates/activates the bundled master model so predictions can run. Check **Admin → Models** — one model should be active.
 
 ### 8c. Import via Admin → Data
@@ -320,7 +286,6 @@ With OULAD CSVs in **`Data/`**, run `Notebook/data_cleaning_and_ml_core.ipynb`. 
 
 - **Synthetic:** `python Scripts/generate_demo_csvs.py` then import from `uploads/students_import_100.csv`.
 - **Manual:** **Students → Create student (demo)** for a single row (active model required).
-
 ---
 
 ## 10. Smoke tests (optional)
