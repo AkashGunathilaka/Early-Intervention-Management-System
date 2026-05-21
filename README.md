@@ -15,7 +15,7 @@ The system lets users:
 The backend is built with FastAPI and PostgreSQL
 the frontend is built with React using Vite
 
-the guid explains how to set up the project and run it locally
+This guide explains how to set up the project and run it locally.
 
 Requirements 
 Make sure to have these installed 
@@ -201,7 +201,7 @@ You should see 200 students on the dashboard with risk levels and interventions.
 
 ### Regenerating the CSV (optional, requires OULAD)
 
-In the notebook, after building `demo_df`, export with the importer columns (`code_module`, `total_score`, `avg_weight`, `days_from_start`, `at_risk_label`, etc.) and save as `seed/demo_students_200.csv`, then commit.
+With OULAD CSVs in **`Data/`**, run `Notebook/data_cleaning_and_ml_core.ipynb`. After building `demo_df`, export with the importer columns (`code_module`, `total_score`, `avg_weight`, `days_from_start`, `at_risk_label`, etc.) and save as `seed/demo_students_200.csv`, then commit.
 
 ---
 
@@ -234,15 +234,17 @@ The model was trained on the **Open University Learning Analytics Dataset (OULAD
 
 https://analyse.kmi.open.ac.uk/open-dataset  
 
-The full OULAD download is **not** in this repo (size and licensing). To reproduce training from scratch:
+The full OULAD CSVs are **not committed** to git (size and licensing). They belong in the **`Data/`** folder at the repo root (see `Data/readme.md`). The notebook also accepts a lowercase `data/` folder with the same files.
 
-1. Download OULAD and place files under `data/`.
-2. Use the Jupyter notebook: `Notebook/data_cleaning_and_ml_core.ipynb`.
-3. New pickles and metrics land under `model/`; retrain flows in **Admin → ML** register new `ModelRecord` rows.
+To reproduce training from scratch:
 
-For day-to-day use of the web app, the **bundled** files in `model/` are enough.
+1. Download OULAD and copy the `anonymisedData` CSVs into **`Data/`** (at minimum: `studentInfo.csv`, `studentVle.csv`, `studentAssessment.csv`, `assessments.csv`).
+2. Open `Notebook/data_cleaning_and_ml_core.ipynb` and run all cells (it auto-detects `Data/` or `data/`).
+3. New pickles and metrics land under `model/`; retrain flows in **Admin → ML** register new `ModelRecord` rows under `model/artifacts/`.
 
-**Note:** Runtime prediction uses paths stored on the active `ModelRecord` (typically `model/final_master_model.pkl` and `model/final_master_feature_columns.pkl`). Retrained models are saved under `model/artifacts/`. SQLAlchemy ORM code lives in `app/models/` (Python files only — not pickle files).
+For day-to-day use of the web app, the **bundled** files in `model/` are enough — you do not need OULAD on disk unless you are retraining.
+
+**Note:** Runtime prediction uses paths stored on the active `ModelRecord` (typically `model/final_master_model.pkl` and `model/final_master_feature_columns.pkl` from the notebook). Retrained models are saved under `model/artifacts/`. SQLAlchemy ORM code lives in `app/models/` (Python files only — not pickle files).
 
 ---
 
@@ -262,8 +264,9 @@ For day-to-day use of the web app, the **bundled** files in `model/` are enough.
 app/              FastAPI app (routes, models, ML, services)
 frontend/         React + Vite UI
 model/            Trained model pickles and metrics (used at runtime)
+Data/             OULAD raw CSVs for the notebook (gitignored *.csv)
 seed/             Committed demo_students_200.csv (import via Admin → Data)
-uploads/          Ad-hoc CSV uploads (gitignored)
+uploads/          Ad-hoc CSV uploads for the web app (gitignored)
 Notebook/         OULAD training / cleaning notebook
 Scripts/          Demo CSVs, cleanup, sequence reset
 tests/            API smoke tests

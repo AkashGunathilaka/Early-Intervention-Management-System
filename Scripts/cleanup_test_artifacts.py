@@ -7,18 +7,20 @@ Run with:
     python -m Scripts.cleanup_test_artifacts
 """
 
+import json
 from pathlib import Path
 
 from app.db.database import SessionLocal
 from app.models.dataset import Dataset
 from app.models.model_record import ModelRecord
 from app.models.student import Student
-from app.services.model_service import deactivate_all_models
+from app.services.model_service import activate_model_record
 
 
-# Master model files saved in the project
+# Master model files written by Notebook/data_cleaning_and_ml_core.ipynb
 MASTER_MODEL_PATH = "model/final_master_model.pkl"
 MASTER_FEATURE_COLUMNS_PATH = "model/final_master_feature_columns.pkl"
+MASTER_MODEL_NAME = "Original Master Model"
 
 
 def _ensure_master_active(db) -> ModelRecord:
@@ -47,14 +49,24 @@ def _ensure_master_active(db) -> ModelRecord:
                 "No master ModelRecord and no Dataset rows exist — cannot "
                 "create a master ModelRecord. Re-seed the database first."
             )
+        metrics = {}
+        metrics_path = Path(__file__).resolve().parents[1] / "model" / "final_master_metrics.json"
+        if metrics_path.exists():
+            metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+
         master = ModelRecord(
             dataset_id=seed_dataset.dataset_id,
-            model_name="xgboost-risk-model-master",
+            model_name=MASTER_MODEL_NAME,
             version="master",
             algorithm="XGBoost",
             model_path=MASTER_MODEL_PATH,
             feature_columns_path=MASTER_FEATURE_COLUMNS_PATH,
-            is_active=True,
+            accuracy=metrics.get("accuracy"),
+            precision=metrics.get("precision"),
+            recall=metrics.get("recall"),
+            f1_score=metrics.get("f1_score"),
+            roc_auc=metrics.get("roc_auc"),
+            is_active=False,
             is_locked=True,
         )
         db.add(master)
@@ -62,9 +74,7 @@ def _ensure_master_active(db) -> ModelRecord:
         print(f"  Created master ModelRecord id={master.model_id}")
 
     master.is_locked = True
-    deactivate_all_models(db)
-    master.is_active = True
-    db.flush()
+    activate_model_record(db, master)
     return master
 
 
