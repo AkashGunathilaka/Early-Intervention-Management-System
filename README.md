@@ -17,56 +17,163 @@ the frontend is built with React using Vite
 
 This guide explains how to set up the project and run it locally.
 
-Requirements 
-Make sure to have these installed 
+## Requirements
 
-Python 3.10, 3.11 or 3.12
-Node.js 18+ - needed for frontend
-PostgreSQL 14+
+| Software | Version | Used for |
+|----------|---------|----------|
+| **Python** | 3.10, 3.11, or 3.12 | Backend API and scripts |
+| **Node.js** | 18+ | Frontend (Vite + React) |
+| **PostgreSQL** | 14+ | Database (students, users, predictions) |
 
-You do not need to download the full OULAD dataset just to run the web app. 
-the repository already includes the trained model files in the model/ folder along with some student data to start
+You do **not** need the full OULAD download to run the web app. The repo includes trained model files in `model/` and `seed/demo_students_200.csv` for import.
+
+### What must be in your copy of the project
+
+| Item | Notes |
+|------|--------|
+| `model/final_master_model.pkl` (+ feature columns, metrics) | Required for predictions |
+| `frontend/src/lib/` (`auth.ts`, `api.ts`, `format.ts`) | Required for the UI (must be tracked in git) |
+| `.env` | **Not** in git — create from `.env.example` on each machine |
+| `frontend/.env` | **Not** in git — create from `frontend/.env.example` |
+
+---
+
+## Run order (checklist)
+
+1. Install and start **PostgreSQL** → create database `early_intervention`
+2. Copy **`.env.example`** → **`.env`** and set `DATABASE_URL` + `SECRET_KEY`
+3. Create Python **venv**, `pip install -r requirements.txt`
+4. Start **API**: `uvicorn app.main:app --reload`
+5. Create **first admin user** (script below — not automatic)
+6. In **`frontend/`**: `npm install`, copy `.env`, `npm run dev`
+7. Log in, register master model, import demo CSV (optional)
+
+You need **three terminals** for a full session: Postgres running, API, frontend.
+
+---
 
 ## 1. Clone the repository
-
 
 ```bash
 git clone <your-repo-url>
 cd Early-Intervention-Management-System
 ```
+
 ---
 
-## 2. Create the PostgreSQL database
+## 2. Install PostgreSQL
 
-Create an empty database:
+PostgreSQL is a separate program from Python and Node. The web app **cannot run** without it. Installing Postgres does **not** create a website login — you add that in [step 6](#6-create-your-first-admin-user).
+
+### Check if Postgres is already installed
+
+```bash
+which psql
+pg_isready
+```
+
+- `pg_isready` → `accepting connections` means the **server is running**.
+- `createdb` or `psql` may still ask for a **Postgres username/password** — that is normal (see below).
+
+---
+
+### Option A — Postgres.app 
+
+1. Download and install [Postgres.app](https://postgresapp.com).
+2. Open it and click **Initialize** to start the server.
+3. Create the database (Terminal):
 
 ```bash
 createdb early_intervention
 ```
 
-Or in `psql`:
+If that fails, open **psql** from Postgres.app and run:
 
 ```sql
 CREATE DATABASE early_intervention;
 ```
+
+4. In `.env`, use your 
+
+```env
+DATABASE_URL=postgresql+psycopg2://YOUR_MAC_USERNAME@127.0.0.1:5432/early_intervention
+```
+
+Example: `postgresql+psycopg2://akashgunathilaka@127.0.0.1:5432/early_intervention`
+
 ---
 
-## 3. Backend environment
 
-From the **repo root**, copy the example env file and edit it:
+
+
+
+
+---
+
+### Option C — Homebrew (Mac)
+
+```bash
+brew install postgresql@16
+brew services start postgresql@16
+```
+
+Create the database (use the Postgres user that works on your machine):
+
+```bash
+createdb early_intervention
+# or, if prompted for a password:
+createdb -U postgres -h localhost early_intervention
+```
+
+Set `DATABASE_URL` in `.env` to the **same username and password** that work for `createdb` / `psql`.
+
+---
+
+### Postgres login vs website login
+
+| | Postgres | This application |
+|--|----------|------------------|
+| **What** | Database server account | Staff/admin in the `users` table |
+| **Used when** | `createdb`, `psql`, API connecting to DB | Logging in at http://localhost:5173 |
+| **Created by** | Postgres install / Docker | [Step 6](#6-create-your-first-admin-user) script |
+| **Example** | user `postgres`, password you chose | `admin@example.com` / `change-me-now` |
+
+If `createdb` says `password authentication failed`, Postgres is running but the **wrong user or password** was used — fix `.env`, not the website password.
+
+---
+
+### Verify Postgres before starting the API
+
+```bash
+pg_isready
+python -c "import os; from dotenv import load_dotenv; load_dotenv(); print(os.getenv('DATABASE_URL'))"
+```
+
+The second command must print a full `postgresql+psycopg2://...` URL, not `None`.
+
+---
+
+## 3. Backend environment (`.env`)
+
+From the **repo root**:
 
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` and set at least:
+Edit `.env`:
 
-- **`DATABASE_URL`** — your Postgres user, password, host, and database name  
-  Example (default in `.env.example`):  
-  `postgresql+psycopg2://postgres:postgres@127.0.0.1:5432/early_intervention`
-- **`SECRET_KEY`** — a long random string (used to sign JWT login tokens) example - btQvGN1Pqi2e87ZzFGLXIeDvY_CXUdMU-y0s_RJYp-g54mcLI2qT39gUvRk6YGoGbLGC2R_hUGBKbedflXRitw
+- **`DATABASE_URL`** — must match [step 2](#2-install-postgresql) (user, password, host, database name `early_intervention`).
+- **`SECRET_KEY`** — any long random string (signs JWT login tokens).
 
-Other values (`ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES`) can stay as in the example.
+Example (Docker or default Homebrew `postgres` user):
+
+```env
+DATABASE_URL=postgresql+psycopg2://postgres:postgres@127.0.0.1:5432/early_intervention
+SECRET_KEY=change-this-to-a-long-random-string
+```
+
+`ALGORITHM` and `ACCESS_TOKEN_EXPIRE_MINUTES` can stay as in `.env.example`.
 
 ---
 
@@ -75,11 +182,13 @@ Other values (`ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES`) can stay as in the exa
 From the repo root:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
+python3 -m venv venv
+source venv/bin/activate          # Windows: venv\Scripts\activate
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
+
+Use the same project folder for the venv and for running `uvicorn` (do not mix a venv from another copy of the repo).
 
 `requirements.txt` includes notebook/ML tooling as well as the API stack, so the first install can take a few minutes.
 
@@ -143,12 +252,15 @@ Additional users (staff or admin) can be created later from Admin -> Users in th
 
 ## 7. Frontend environment and dev server
 
-In a **third terminal**:
+In a **third terminal** (API still running in terminal 2):
 
 ```bash
 cd frontend
+npm install
 cp .env.example .env
 ```
+
+`npm install` is required on every new machine (creates `node_modules/`, including Vite). Ensure `frontend/src/lib/` exists (`auth.ts`, `api.ts`, `format.ts`) — the app will not build if that folder is missing.
 
 `frontend/.env` should contain:
 
@@ -157,10 +269,9 @@ VITE_API_BASE_URL=http://127.0.0.1:8000
 VITE_IDLE_TIMEOUT_MINUTES=30
 ```
 
-Then install and run:
+Then run:
 
 ```bash
-npm install
 npm run dev
 ```
 
@@ -242,7 +353,7 @@ To reproduce training from scratch:
 2. Open `Notebook/data_cleaning_and_ml_core.ipynb` and run all cells (it auto-detects `Data/` or `data/`).
 3. New pickles and metrics land under `model/`; retrain flows in **Admin → ML** register new `ModelRecord` rows under `model/artifacts/`.
 
-For day-to-day use of the web app, the commited files in `model/` are enough — you do not need OULAD on disk unless you are retraining.
+For day-to-day use of the web app, the committed files in `model/` are enough — you do not need OULAD on disk unless you are retraining.
 
 **Note:** Runtime prediction uses paths stored on the active `ModelRecord` (typically `model/final_master_model.pkl` and `model/final_master_feature_columns.pkl` from the notebook). Retrained models are saved under `model/artifacts/`. SQLAlchemy ORM code lives in `app/models/`.
 
@@ -274,9 +385,25 @@ tests/            API smoke tests
 
 ---
 
+## 14. Troubleshooting
 
+| Problem | What to check |
+|---------|----------------|
+| `No module named 'sqlalchemy'` | Activate venv; run `pip install -r requirements.txt` in the project root |
+| `DATABASE_URL` / `got None` | Create `.env` from `.env.example` in the **same folder** as `app/` |
+| `password authentication failed` (Postgres) | `DATABASE_URL` user/password must match Postgres — see [step 2](#2-install-postgresql); not the website login |
+| `connection refused` / Postgres errors | Run `pg_isready`; start Postgres.app, Docker container, or `brew services start` |
+| `createdb` fails | Try Docker ([option B](#option-b--docker-mac-windows-or-linux)) or Postgres.app ([option A](#option-a--postgresapp-easiest-on-mac-recommended-for-markers)) |
+| Login fails on frontend | Create admin user ([step 6](#6-create-your-first-admin-user)); API must be running |
+| `Cannot find package 'vite'` | Run `npm install` inside `frontend/` |
+| `Failed to resolve import "./lib/auth"` | Copy or pull `frontend/src/lib/` — see [requirements table](#requirements) |
+| `No active model found` | Run `python -m Scripts.cleanup_test_artifacts` after at least one dataset exists |
+| Frontend cannot reach API | `VITE_API_BASE_URL=http://127.0.0.1:8000` in `frontend/.env`; backend on port 8000 |
+| `Model file not found` | Ensure `model/final_master_*.pkl` files exist in the project copy |
 
-## 14. Default URLs
+---
+
+## 15. Default URLs
 
 | Service | URL |
 |---------|-----|
